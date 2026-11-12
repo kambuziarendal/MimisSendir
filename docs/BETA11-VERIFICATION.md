@@ -13,3 +13,5 @@ Native Haiku R1 beta6 hrev59866+79 x86_64, isolated QEMU guest and synthetic TLS
 HPKG `0.1.0~beta11-1` SHA256: `7493f326511beab930679f9c5b7f388f2b2b7f45861fc26972ef641e59388838`.
 
 Recovery: reinstall retained beta10-2, without restoring old history. No data/schema migration. Test evidence retained locally under `reports/mimissendir-video-posters-20261112`.
+
+Published source `85b4252`, tag `v0.1.0-beta.11`. Anonymous GitHub HPKG/source/checksum downloads match the local artifacts. Spritz app page, search, x86_64 resolver and actual download verified for beta11-1 and the HPKG hash above. The installed app exited, the guest was synced, and the owned QEMU, synthetic peers/services and tunnels were stopped. No bridge deployment was performed.
