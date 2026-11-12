@@ -7,3 +7,5 @@ A pinned cichéto manifest is provided in `distribution/no.kambuzi.mimissendir.y
 The manifest is validated against the [SpritzDepot source schema](https://github.com/atomozero/SpritzDepot/blob/main/app/schemas.py). No account has been created and no public catalog submission has been made. The production catalog URL/account and an actual Spritz install still need confirmation. GitHub downloads work independently of Spritz.
 
 To regenerate, use `tools/release/make_spritz_manifest.py` with the final local HPKG, pinned release URL, public homepage and accurate license field. `POST /publish` validates a form; `POST /publications` publishes immediately and is not a preview endpoint.
+
+Use the manifest on the current main branch. The initial beta tags preserve a pre-upload manifest with a `~` in the HPKG URL; GitHub normalized that character to `.` when creating the asset. Main uses the actual verified asset URL. The HPKG contents and package version are unchanged.
