@@ -13,3 +13,5 @@ Native Haiku R1 beta6 hrev59866+79 x86_64, isolated overlay backed by the stoppe
 - Limits: installed Haiku codecs; inline frames up to 4096×2160 and 1 to 120 fps, duration up to 24 hours. Preview is at most 480×270 and the UI refreshes at 20 Hz. Physical-device playback, every codec/variable-rate file and native HaikuDepot delivery are not claimed tested.
 
 Recovery: reinstall retained beta 9 without restoring stale history. No history/schema migration. Test-only inactive beta 9 package state was retained on the guest work disk; production files and services were unchanged.
+
+Published tag `v0.1.0-beta.10`, source `8e85dae92f12b211edcf43bfb7274fb9fa0cdb16`. Anonymous GitHub HPKG/source downloads match local SHA-256. Spritz page, search and x86_64 resolver verified for beta10-2 and the pinned package hash above. The task-owned VM, synthetic XMPP/HTTPS servers and reverse tunnel are stopped.
