@@ -477,7 +477,7 @@ void TalkView::MessageReceived(BMessage *msg) {
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
         msg->RemoveName("name");msg->AddString("name",fFriendlyName.c_str());
     }
-    if((msg->what=='rInc' || msg->what=='mCor') && fLoadingArchive){if(fDeferredReactions.size()<128)fDeferredReactions.push_back(*msg);return;}
+    if((msg->what=='rInc' || msg->what=='mCor' || msg->what=='mRed') && fLoadingArchive){if(fDeferredReactions.size()<128)fDeferredReactions.push_back(*msg);return;}
     if(msg->what=='rSet' && fLoadingArchive){SetStatus("Wait for history to finish loading before reacting.");return;}
     if(msg->what=='hDon') {
         fLoadingArchive=false;std::vector<BMessage> records;BMessage m;bool changed=false;
@@ -494,6 +494,10 @@ void TalkView::MessageReceived(BMessage *msg) {
             const bool own=item.GetBool("outgoing",false) || (IsGroupChat() && std::string(item.GetString("name",""))==_group_username);
             changed=fHistory->Correct(item.GetString("replace",""),item.GetString("id",""),item.GetString("body",""),item.GetString("sender",""),own,item.GetInt64("time",0))||changed;
         }
+        for (const auto& item : records) if (item.what=='mRed') {
+            if (IsGroupChat() && std::string(item.GetString("name", ""))==_group_username) continue;
+            changed=fHistory->MarkRead(item.GetString("id", ""),item.GetString("actor", "")) || changed;
+        }
         // Rebuild once, chronologically, after the bounded archive batch. No outgoing replay.
         if(changed) {
             auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
@@ -509,12 +513,13 @@ void TalkView::MessageReceived(BMessage *msg) {
             else if(std::string(item.GetString("name",""))==_group_username){item.RemoveName("actor");item.AddString("actor","self");}
             fReactions->Handle(item);
         }
-        for(auto live:fDeferredReactions){if(live.what=='mCor')MessageReceived(&live);else if(fReactions)fReactions->Handle(live);}
+        for(auto live:fDeferredReactions){if(live.what=='mCor' || live.what=='mRed')MessageReceived(&live);else if(fReactions)fReactions->Handle(live);}
         fDeferredReactions.clear();
         if(initial || changed || !msg->GetBool("complete",false) || !fHistory->Error().empty())
             SetStatus(fHistory->Error().empty()?msg->GetString("status","History loaded."):fHistory->Error());
         return;
     }
+    if(msg->what=='mRed'){ReceiveRead(*msg);return;}
     if(fReactions && fReactions->Handle(*msg))return;
 	if (fAttachments && fAttachments->HandleMessage(*msg)) return;
 	switch(msg->what) {
@@ -1412,12 +1417,7 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
 	paragraphStyle.SetFirstLineInset(0);
     if(type!=OTHER) {
         const time_t seconds=timestamp>0?timestamp/1000000:0;
-        std::string clock=ChatDate::Clock(seconds);
-        if(fHistory && !messageId.empty()) {
-            auto record=fHistory->Record(messageId);const std::string state=record.GetString("edit-state","");
-            if(!state.empty())clock+=state=="unconfirmed"?" · edited, unconfirmed":" · edited";
-        }
-        paragraphStyle.SetMessageTime(clock);
+        paragraphStyle.SetMessageTime(MessageFooter(messageId, timestamp));
         const auto day=ChatDate::Day(seconds);
         if(day!=fLastMessageDay) {
             ParagraphStyle separator;separator.SetDateDivider(seconds);separator.SetSpacingTop(12);separator.SetSpacingBottom(8);
@@ -1920,6 +1920,7 @@ void TalkView::RefreshHeader(const char* name)
 
 void TalkView::DeliveryStatus(const std::string& id, Chat::Delivery state)
 {
+    if (fHistory && !fHistory->ReadLabel(id).empty()) return;
     const auto* message = fDeliveries.Find(id);
     if (!message) {
         if (state == Chat::Delivery::Failed)
@@ -2034,4 +2035,40 @@ void TalkView::UpdateReading()
         if (!connection->QueueDisplayed(IsGroupChat() ? _group_room : _session->target().bare(), id, IsGroupChat())) break;
         fReadTracker.Submitted(id);
     }
+}
+
+std::string TalkView::MessageFooter(const std::string& id, int64 timestamp) const {
+    auto footer = ChatDate::Clock(timestamp > 0 ? timestamp / 1000000 : 0);
+    if (!fHistory || id.empty()) return footer;
+    const auto record = fHistory->Record(id);
+    const std::string edit = record.GetString("edit-state", "");
+    if (!edit.empty()) footer += edit == "unconfirmed" ? " · edited, unconfirmed" : " · edited";
+    const auto read = fHistory->ReadLabel(id);
+    if (!read.empty()) footer += " · " + read;
+    return footer;
+}
+
+void TalkView::ReceiveRead(const BMessage& message) {
+    if (!fHistory) return;
+    const std::string id = message.GetString("id", "");
+    if (!fHistory->MarkRead(id, message.GetString("actor", ""))) return;
+    const auto record = fHistory->Record(id);
+    const std::string original = record.GetString("id", "");
+    auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float low = 0, high = 0;
+    bar->GetRange(&low, &high);
+    const bool bottom = bar->Value() >= high - 1;
+    for (int32 i = 0; i < fTimelineDocument->CountParagraphs(); ++i) {
+        auto paragraph = fTimelineDocument->ParagraphAtIndex(i);
+        auto style = paragraph.Style();
+        auto target = fHistory->Record(style.ReactionId());
+        if (original != target.GetString("id", "")) continue;
+        style.SetMessageTime(MessageFooter(original, record.GetInt64("time", 0)));
+        paragraph.SetStyle(style);
+        fTimelineDocument->SetParagraph(i, paragraph);
+    }
+    fTimeline->Relayout();
+    fTimeline->Invalidate();
+    if (bottom) { bar->GetRange(&low, &high); bar->SetValue(high); }
+    SetStatus(fHistory->ReadLabel(id));
 }

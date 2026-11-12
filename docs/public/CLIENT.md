@@ -79,7 +79,9 @@ Public builds have empty service defaults. Configure Signal domains and upload e
 - Server history restoration depends on the server's archive and retention settings.
   A readiness/status indication is not proof of end-to-end Signal delivery.
 
-Beta 4 adds right-click **Edit…** on your sent text messages and reactions in the timestamp footer. Beta 5 adds a jump-to-latest button beside the composer when scrolled up. Read receipts are not implemented as a working end-to-end feature in the current beta.
+Beta 4 adds right-click **Edit…** on your sent text messages and reactions in the timestamp footer. Beta 5 adds a jump-to-latest button beside the composer when scrolled up. Beta 6 shows **Read** beside the timestamp when the peer reports displaying that exact outgoing message. Groups show **Read by N participants** for received participant markers, not an “everyone” claim. A delivery receipt or reaction alone never means read. Read status persists locally across restart, including room-assigned ID aliases; server-archived displayed markers are applied when available. Receipts for unknown IDs or another conversation are ignored. Messages without a read receipt remain unconfirmed, not necessarily unread.
+
+Incoming messages with read-marker support are acknowledged after a short, stable visible dwell in the active conversation. Hidden, minimized, inactive or clipped content is not acknowledged just because it was received. Both sides and any Signal bridge must support forwarding the markers. Signal privacy settings may suppress receipts. Native synthetic verification does not establish live Signal behavior for every bridge, especially group receipts.
 
 ## Stickers and GIFs
 

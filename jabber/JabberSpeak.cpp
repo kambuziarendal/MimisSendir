@@ -1040,6 +1040,7 @@ void JabberSpeak::_SendQueuedText()
             if (!request.reactionId.empty()) message.addExtension(new Chat::Reactions(request.reactionId,
                 request.text.empty() ? std::vector<std::string>{} : std::vector<std::string>{request.text}));
             else if (!request.group) message.addExtension(new Chat::Receipt(true));
+            if (request.reactionId.empty()) message.addExtension(Chat::Marker::Request());
             if(!request.replaceId.empty()) message.addExtension(new Chat::Correction(request.replaceId));
             if(!request.replyId.empty()) {
                 message.addExtension(new Chat::Reply(request.replyId,request.replyTo));

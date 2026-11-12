@@ -171,3 +171,40 @@ std::vector<BMessage> ChatHistory::Records() const {
     std::stable_sort(records.begin(),records.end(),[](const auto& a,const auto& b){return a.GetInt64("time",0)<b.GetInt64("time",0);});
     return records;
 }
+
+// Exact message correlation: a later read marker is not evidence that an
+// offscreen earlier message was seen. Never infer "everyone read" in a group.
+bool ChatHistory::MarkRead(const std::string& id, const std::string& actor) {
+    auto key = Key(id);
+    if (key.empty() || actor.empty() || actor.size() > 3071) return false;
+    if (fGroup) {
+        const auto prefix = fPeer + "/";
+        if (actor.compare(0, prefix.size(), prefix) != 0 || actor.size() == prefix.size()) return false;
+    } else if (actor != fPeer) return false;
+    BMessage record(fRecords.at(key));
+    if (!record.GetBool("outgoing", false)) return false;
+    const char* reader;
+    int count = 0;
+    while (record.FindString("read-by", count, &reader) == B_OK) {
+        if (actor == reader) return false;
+        ++count;
+    }
+    // Bound metadata without dropping an existing reader on overflow.
+    if (count >= 256) return false;
+    record.AddString("read-by", actor.c_str());
+    if (record.FlattenedSize() > 256 * 1024) return false;
+    if (!Save(key, record)) return false;
+    fRecords[key] = record;
+    return true;
+}
+
+std::string ChatHistory::ReadLabel(const std::string& id) const {
+    auto record = Record(id);
+    if (!record.GetBool("outgoing", false)) return {};
+    const char* actor;
+    int count = 0;
+    while (record.FindString("read-by", count, &actor) == B_OK) ++count;
+    if (!count) return {};
+    if (!fGroup) return "Read";
+    return "Read by " + std::to_string(count) + (count == 1 ? " participant" : " participants");
+}

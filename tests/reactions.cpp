@@ -14,12 +14,13 @@
 #include <memory>
 #include <stdexcept>
 struct WireProbe : gloox::MessageSessionHandler, gloox::MessageHandler {
-    int contents=0,errors=0,reactions=0,corrections=0,markables=0;
+    int contents=0,errors=0,reactions=0,corrections=0,markables=0,reads=0;
     void handleMessageSession(gloox::MessageSession* session) override { session->registerMessageHandler(this); }
     void handleMessage(const gloox::Message& m,gloox::MessageSession*) override {
         auto kind=Chat::Classify(m);
         auto* marker=m.findExtension<Chat::Marker>(Chat::Marker::kExtension);
         if(marker && marker->markable()) ++markables;
+        if(marker && !marker->id().empty()) ++reads;
         if(kind==Chat::MessageKind::Content)++contents;
         if(kind==Chat::MessageKind::DeliveryError)++errors;
         if(kind==Chat::MessageKind::Reaction)++reactions;
@@ -142,5 +143,14 @@ int main() {
     client.handleTag(&foreignEdit);check(wire.corrections==1 && wire.contents==3,"foreign replace namespace is not a correction");
     incoming.addChild(markable.clone());client.handleTag(&incoming);
     check(wire.markables==1, "real gloox dispatch retains marker opt-in");
+    std::unique_ptr<Chat::Marker> requested(Chat::Marker::Request());
+    std::unique_ptr<gloox::Tag> requestTag(requested->tag());
+    check(requestTag->name()=="markable" && Chat::Marker(requestTag.get()).markable(),"outgoing text and media can request read markers");
+    gloox::Tag readWire("message");readWire.addAttribute("type","chat");readWire.addAttribute("from","bob@fixture.test/phone");
+    readWire.addChild(displayed.tag());client.handleTag(&readWire);
+    check(wire.reads==1 && wire.contents==4,"bodyless read marker reaches real gloox handler once without content");
+    gloox::Tag deliveryWire("message");deliveryWire.addAttribute("type","chat");deliveryWire.addAttribute("from","bob@fixture.test/phone");
+    auto* delivered=new gloox::Tag(&deliveryWire,"received");delivered->setXmlns("urn:xmpp:receipts");delivered->addAttribute("id","original");
+    client.handleTag(&deliveryWire);check(wire.reads==1,"delivery receipt never becomes a read marker");
     std::cout<<checks<<" reaction and attachment checks passed\n";
 }

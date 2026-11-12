@@ -170,6 +170,8 @@ private:
     Chat::ReadTracker fReadTracker;
     uint64 fReadGeneration=0;
     void UpdateReading();
+    std::string MessageFooter(const std::string& id, int64 timestamp) const;
+    void ReceiveRead(const BMessage& message);
 
 	BScrollView*		fMessageInputScroller;
 	BTextView*			fMessageInput;

@@ -343,6 +343,17 @@ void TalkManager::DeliverMessage(const gloox::Message& msg,
             }
         }
     }
+    if (!outgoing && kind != Chat::MessageKind::DeliveryError && session
+        && msg.from().bare() == session->target().bare()) {
+        const auto* marker = msg.findExtension<Chat::Marker>(Chat::Marker::kExtension);
+        auto found = fTalkMap.find(session);
+        if (marker && !marker->id().empty() && found != fTalkMap.end()) {
+            BMessage read('mRed');
+            read.AddString("id", marker->id().c_str());
+            read.AddString("actor", msg.from().bare().c_str());
+            PostToView(found->second, read);
+        }
+    }
     if (kind == Chat::MessageKind::Correction) {
         const auto* correction=msg.findExtension<Chat::Correction>(Chat::Correction::kExtension);
         auto found=fTalkMap.find(session);
@@ -779,6 +790,16 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
         notice.AddInt32("condition", msg.error() ? msg.error()->error() : gloox::StanzaErrorUndefined);
         PostToView(known->second, notice);
         return;
+    }
+    if (!priv && msg.from().bare() == room->name() + "@" + room->service()
+        && !msg.from().resource().empty() && msg.from().resource() != room->nick()) {
+        const auto* marker = msg.findExtension<Chat::Marker>(Chat::Marker::kExtension);
+        if (marker && !marker->id().empty()) {
+            BMessage read('mRed');
+            read.AddString("id", marker->id().c_str());
+            read.AddString("actor", msg.from().full().c_str());
+            PostToView(known->second, read);
+        }
     }
     if (const auto* correction=msg.findExtension<Chat::Correction>(Chat::Correction::kExtension)) {
         if(!priv) {

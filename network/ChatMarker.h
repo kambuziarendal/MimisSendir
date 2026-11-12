@@ -15,6 +15,11 @@ public:
         if (fId.size() > 1024) fId.clear();
     }
     explicit Marker(const std::string& id) : StanzaExtension(kExtension), fId(id) {}
+    static Marker* Request() {
+        auto* marker = new Marker();
+        marker->fMarkable = true;
+        return marker;
+    }
     bool markable() const { return fMarkable; }
     const std::string& id() const { return fId; }
     const std::string& filterString() const override {

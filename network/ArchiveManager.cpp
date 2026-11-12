@@ -1,4 +1,5 @@
 // Copyright 2026 Kambuzi. Distributed under the MIT license.
+#include "ChatMarker.h"
 #include "ArchiveManager.h"
 #include "ArchiveTags.h"
 #include "Reactions.h"
@@ -61,6 +62,7 @@ bool ArchiveManager::Handle(const gloox::Message& message){
     if(!ArchiveSender(message.from().bare(),own,r->peer,r->group))return true;
     auto* forward=ArchiveChild(result,"forwarded","urn:xmpp:forward:0");auto* msg=ArchiveChild(forward,"message","jabber:client");auto* delay=ArchiveChild(forward,"delay","urn:xmpp:delay");
     if(!msg || !delay || r->count>=1000 || r->result.FlattenedSize()>4*1024*1024)return true;
+    if (msg->findAttribute("type")=="error" || ArchiveChild(msg,"error","jabber:client")) return true;
     gloox::JID from(msg->findAttribute("from")),to(msg->findAttribute("to"));bool sent=from.bare()==own;
     if(!ArchivePeer(from.bare(),to.bare(),own,r->peer,r->group))return true;
     BMessage item;auto id=msg->findAttribute("id");
@@ -69,7 +71,12 @@ bool ArchiveManager::Handle(const gloox::Message& message){
     item.AddString("wire-id",msg->findAttribute("id").c_str());
     item.AddString("id",id.c_str());item.AddInt64("time",Conversations::ArchiveTime(delay->findAttribute("stamp")));
     item.AddString("sender",from.full().c_str());item.AddBool("outgoing",sent);item.AddString("name",r->group?from.resource().c_str():sent?"You":"Contact");
-    if(auto* correction=ArchiveChild(msg,"replace","urn:xmpp:message-correct:0")) {
+    if(auto* displayed=ArchiveChild(msg,"displayed","urn:xmpp:chat-markers:0")) {
+        Marker marker(displayed);
+        if (sent || marker.id().empty() || (r->group && from.resource().empty())) return true;
+        item.what='mRed';item.ReplaceString("id",marker.id().c_str());
+        item.AddString("actor",r->group?from.full().c_str():from.bare().c_str());
+    } else if(auto* correction=ArchiveChild(msg,"replace","urn:xmpp:message-correct:0")) {
         auto* body=ArchiveChild(msg,"body","jabber:client");if(!body || body->cdata().empty() || body->cdata().size()>65536)return true;
         item.what='mCor';item.ReplaceString("id",msg->findAttribute("id").c_str());item.AddString("replace",correction->findAttribute("id").c_str());item.AddString("body",body->cdata().c_str());
     } else if(auto* reaction=ArchiveChild(msg,"reactions","urn:xmpp:reactions:0")){

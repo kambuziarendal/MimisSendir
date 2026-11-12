@@ -1,4 +1,5 @@
 #include "network/DeliveryReceipt.h"
+#include "network/ChatMarker.h"
 // Copyright 2026 Kambuzi. Distributed under the MIT license.
 #include "UploadManager.h"
 #include "HttpUpload.h"
@@ -188,6 +189,7 @@ void Manager::Tick()
 						gloox::JID(task->recipient), task->url);
 					task->messageId = fClient.getID();
                     message.setID(task->messageId);
+                    message.addExtension(Chat::Marker::Request());
                     if (!task->group) message.addExtension(new Chat::Receipt(true));
                     message.addExtension(new gloox::OOB(task->url, task->filename, false));
 					fClient.send(message);
