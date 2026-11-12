@@ -34,7 +34,7 @@ TextSpan::TextSpan(const TextSpan& other)
 	fCursor(other.fCursor),
 	fClickMessage(other.fClickMessage),
 	fBitmap(other.fBitmap),
-    fQuote(other.fQuote)
+    fQuote(other.fQuote), fVideoOverlay(other.fVideoOverlay)
 {
 }
 
@@ -49,6 +49,7 @@ TextSpan::operator=(const TextSpan& other)
 	fClickMessage = other.fClickMessage;
 	fBitmap = other.fBitmap;
     fQuote = other.fQuote;
+    fVideoOverlay = other.fVideoOverlay;
 
 	return *this;
 }
@@ -62,7 +63,7 @@ TextSpan::operator==(const TextSpan& other) const
 		&& fText == other.fText
 		&& fCursor == other.fCursor
 		&& fClickMessage == other.fClickMessage
-		&& fBitmap == other.fBitmap && fQuote == other.fQuote;
+		&& fBitmap == other.fBitmap && fQuote == other.fQuote && fVideoOverlay == other.fVideoOverlay;
 }
 
 
@@ -207,5 +208,5 @@ void TextSpan::SetBitmap(std::shared_ptr<BBitmap> bitmap)
 bool TextSpan::CanMergePlain(const TextSpan& other) const
 {
 	return !fClickMessage && !other.fClickMessage && !fBitmap && !other.fBitmap
-		&& fStyle == other.fStyle && fQuote == other.fQuote;
+		&& fStyle == other.fStyle && fQuote == other.fQuote && fVideoOverlay == other.fVideoOverlay;
 }

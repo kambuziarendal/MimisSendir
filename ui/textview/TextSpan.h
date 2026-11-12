@@ -52,6 +52,9 @@ public:
 	void SetBitmap(std::shared_ptr<BBitmap> bitmap);
 	const std::shared_ptr<BBitmap>& Bitmap() const { return fBitmap; }
 	bool CanMergePlain(const TextSpan& other) const;
+    // 0: no overlay (playing), 1: play (paused), 2: loading.
+    void SetVideoOverlay(uint8 value) { fVideoOverlay = value; }
+    uint8 VideoOverlay() const { return fVideoOverlay; }
     void SetQuote(bool value) { fQuote = value; }
     bool IsQuote() const { return fQuote; }
 private:
@@ -68,6 +71,7 @@ private:
 			std::shared_ptr<BMessage>	fClickMessage;
 	std::shared_ptr<BBitmap> fBitmap;
     bool fQuote = false;
+    uint8 fVideoOverlay = 0;
 };
 
 

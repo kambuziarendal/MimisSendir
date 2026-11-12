@@ -1,6 +1,7 @@
 // Copyright 2026 Kambuzi. Distributed under the MIT license.
 #pragma once
 #include <Bitmap.h>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -19,6 +20,8 @@ public:
     ~VideoPlayback();
     VideoPlayback(const VideoPlayback&) = delete;
     VideoPlayback& operator=(const VideoPlayback&) = delete;
+    // Worker-only poster decoding: no audio output or active-player ownership.
+    static std::shared_ptr<BBitmap> LoadPoster(const std::string& path, const std::atomic_bool& cancelled);
     void Pause(bool paused);
     void Seek(bigtime_t position);
     void Mute(bool muted);

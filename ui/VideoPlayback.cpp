@@ -128,6 +128,53 @@ VideoPlayback::Snapshot VideoPlayback::Read(std::shared_ptr<BBitmap>& preview, u
     return result;
 }
 
+std::shared_ptr<BBitmap> VideoPlayback::LoadPoster(const std::string& path,
+    const std::atomic_bool& cancelled)
+{
+    try {
+        if (cancelled) return {};
+        entry_ref ref;
+        if (get_ref_for_path(path.c_str(), &ref) != B_OK) return {};
+        BMediaFile file(&ref);
+        if (file.InitCheck() != B_OK || file.CountTracks() < 1 || file.CountTracks() > 32) return {};
+        for (int32 i = 0; i < file.CountTracks() && !cancelled; ++i) {
+            auto* track = file.TrackAt(i);
+            if (!track) continue;
+            media_format format = {};
+            if (track->InitCheck() != B_OK || track->EncodedFormat(&format) != B_OK
+                || (format.type != B_MEDIA_ENCODED_VIDEO && format.type != B_MEDIA_RAW_VIDEO)) {
+                file.ReleaseTrack(track); continue;
+            }
+            format = {}; format.type = B_MEDIA_RAW_VIDEO;
+            format.u.raw_video = media_raw_video_format::wildcard;
+            format.u.raw_video.display.format = B_RGB32;
+            if (track->DecodedFormat(&format) != B_OK || format.type != B_MEDIA_RAW_VIDEO) return {};
+            const auto d = format.u.raw_video.display;
+            if ((d.format != B_RGB32 && d.format != B_RGBA32) || d.line_width < 1 || d.line_width > 4096
+                || d.line_count < 1 || d.line_count > 2160 || d.bytes_per_row < d.line_width * 4
+                || d.bytes_per_row > 4096 * 4 || d.pixel_offset || d.line_offset) return {};
+            std::vector<uint8> pixels(size_t(d.bytes_per_row) * d.line_count);
+            int64 count = 1; media_header header = {};
+            if (cancelled || track->ReadFrames(pixels.data(), &count, &header) != B_OK
+                || count != 1 || cancelled) return {};
+            const double scale = std::min({1.0, 480.0/d.line_width, 270.0/d.line_count});
+            const int width = std::max(1, int(d.line_width*scale));
+            const int height = std::max(1, int(d.line_count*scale));
+            auto poster = std::make_shared<BBitmap>(BRect(0,0,width-1,height-1), B_RGB32);
+            if (poster->InitCheck() != B_OK) return {};
+            for (int y=0; y<height; ++y) {
+                auto* dst = static_cast<uint8*>(poster->Bits()) + y*poster->BytesPerRow();
+                const auto* src = pixels.data() + (uint64(y)*d.line_count/height)*d.bytes_per_row;
+                for (int x=0; x<width; ++x) {
+                    memcpy(dst+x*4, src+(uint64(x)*d.line_width/width)*4, 4); dst[x*4+3]=255;
+                }
+            }
+            return poster;
+        }
+    } catch (const std::exception&) { /* Keep retry/open options available. */ }
+    return {};
+}
+
 void VideoPlayback::Run(std::shared_ptr<State> s)
 {
     struct Lease {

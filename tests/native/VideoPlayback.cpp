@@ -38,6 +38,15 @@ int main(int argc, char** argv)
 {
     BApplication app("application/x-vnd.Kambuzi-InlineVideoTests");
     if (argc != 3) { fprintf(stderr, "usage: VideoTests audio-video.mp4 silent-video.mp4\n"); return 2; }
+    std::atomic_bool cancel{false};
+    auto poster = VideoPlayback::LoadPoster(argv[1], cancel);
+    Check(poster && poster->InitCheck() == B_OK, "audio-video poster without playback");
+    Check(poster->Bounds().Width() < 480 && poster->Bounds().Height() < 270, "poster dimensions bounded");
+    Check(bool(VideoPlayback::LoadPoster(argv[2], cancel)), "silent-video poster");
+    cancel = true;
+    Check(!VideoPlayback::LoadPoster(argv[1], cancel), "cancelled poster is not decoded");
+    cancel = false;
+    Check(!VideoPlayback::LoadPoster("/missing-poster.mp4", cancel), "invalid poster fails safely");
     auto lease = std::make_shared<int>(1);
     std::weak_ptr<int> weak = lease;
     VideoPlayback player(argv[1], lease);
@@ -49,6 +58,9 @@ int main(int argc, char** argv)
     Check(p.image->Bounds().Width() < 480 && p.image->Bounds().Height() < 270, "bounded preview");
     Check(p.state.audio && p.state.audioFrames > 0, "decoded PCM reaches sound callback");
     Check(!weak.expired(), "download retained while decoding");
+    auto backgroundPoster = VideoPlayback::LoadPoster(argv[2], cancel);
+    Check(bool(backgroundPoster), "poster can load alongside active video");
+    Check(!player.Read(p.image, p.generation).stopped, "poster loading does not supersede player");
     player.Pause(true);
     snooze(100000);
     auto paused = player.Read(p.image, p.generation);

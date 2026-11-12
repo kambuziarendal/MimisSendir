@@ -34,9 +34,9 @@ Beta 6 adds read receipts: outgoing messages show a read indication when a match
 
 Beta 7 uses Signal-style status checks beside each outgoing message: one muted check for sent, two muted checks for delivered, and two white checks for read. It also silences historical and duplicate group-mention notifications on startup, without silencing new mentions.
 
-Beta 10 plays video **inside the conversation**, with play/pause, sound, mute, and 10-second seeking. Clips download only when you press **Play video**, never autoplay. The attachment menu retains **Open in MediaPlayer** and **Save file**. Automatic upload discovery and older image previews from beta 9 are preserved.
+Beta 11 automatically prepares video previews in visible messages. Press the centered play button to start, then click the video to pause. The play button returns when paused, and previews remain when another clip plays. There are no controls below the image and no autoplay. The attachment menu retains **Open in MediaPlayer** and **Save file**. Automatic upload discovery and older image previews are preserved.
 
-The newest client is **beta 10**. Earlier betas are retained for comparison and recovery, not recommended over beta 10. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Add your own GIPHY API key in Settings → GIPHY; it is stored in Haiku KeyStore, not the profile XML. Local GIFs work offline without a key.
+The newest client is **beta 11**. Earlier betas are retained for comparison and recovery, not recommended over beta 11. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Add your own GIPHY API key in Settings → GIPHY; it is stored in Haiku KeyStore, not the profile XML. Local GIFs work offline without a key.
 
 Tested on Haiku R1/beta6 hrev59866+79, x86_64. No hosted messaging account is included. Signal needs an existing phone account and a separate bridge; **Signal encryption terminates at that bridge**, not at this Haiku application. This is not an official Signal client. See [security and privacy](docs/public/SECURITY-PRIVACY.md).
 

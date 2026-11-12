@@ -1086,6 +1086,23 @@ ParagraphLayout::_DrawSpan(BView* view, BPoint offset,
         target.OffsetTo(offset.x,offset.y-style.Ascent()*ratio);
 		view->SetDrawingMode(B_OP_ALPHA);
 		view->DrawBitmap(span.Bitmap().get(), span.Bitmap()->Bounds(), target, B_FILTER_BITMAP_BILINEAR);
+        if (span.VideoOverlay()) {
+            const BPoint center((target.left + target.right) / 2, (target.top + target.bottom) / 2);
+            const float radius = std::min(25.0f, std::min(target.Width(), target.Height()) / 4);
+            view->SetHighColor(0, 0, 0, 170);
+            view->FillEllipse(center, radius, radius);
+            view->SetHighColor(255, 255, 255, 255);
+            if (span.VideoOverlay() == 1) {
+                view->FillTriangle(BPoint(center.x-radius*.3f, center.y-radius*.5f),
+                    BPoint(center.x-radius*.3f, center.y+radius*.5f),
+                    BPoint(center.x+radius*.55f, center.y));
+            } else {
+                view->SetPenSize(3);
+                view->StrokeArc(BRect(center.x-radius*.45f, center.y-radius*.45f,
+                    center.x+radius*.45f, center.y+radius*.45f), 30, 280);
+                view->SetPenSize(1);
+            }
+        }
 		view->SetDrawingMode(B_OP_COPY);
 		return;
 	}

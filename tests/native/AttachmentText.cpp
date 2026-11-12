@@ -79,6 +79,12 @@ int main()
 	Check(image.CountChars() == 1, "inline image occupies one object character");
 	Check(image.Style().Width() == 4 && image.Style().Ascent() == 3, "inline image layout dimensions");
 	Check(image.SubSpan(0, 1).Bitmap() == bitmap, "layout subspan retains image ownership");
+    image.SetVideoOverlay(1);
+    Check(image.SubSpan(0,1).VideoOverlay()==1, "video play overlay survives wrapping");
+    TextSpan playing(image); playing.SetVideoOverlay(0);
+    Check(playing!=image, "pause/play overlay change invalidates span");
+    playing=image;
+    Check(playing.VideoOverlay()==1, "video overlay copied with thumbnail");
 	TextSpan copied(image);
 	Check(copied == image, "image copy equality");
 	Paragraph plain;

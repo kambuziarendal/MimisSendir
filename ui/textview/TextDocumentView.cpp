@@ -148,6 +148,14 @@ TextDocumentView::MouseDown(BPoint where)
 		currentMessage = Window()->CurrentMessage();
 
     if(currentMessage && (currentMessage->GetInt32("buttons",0)&B_SECONDARY_MOUSE_BUTTON)) {
+        bool trailing;
+        const int32 hit = fTextDocumentLayout.TextOffsetAt(where.x-fInsetLeft, where.y-fInsetTop, trailing);
+        const BMessage* attachment = fTextDocument->ClickMessageAt(hit);
+        if (attachment && attachment->HasUInt64("attachment-token")
+            && fTextDocumentLayout.ExactTextHit(where.x-fInsetLeft, where.y-fInsetTop, hit)) {
+            BMessage action(*attachment); action.what = 'aMnu'; Invoke(&action); return;
+        }
+
         const int32 index=fTextDocumentLayout.MessageAt(where.x-fInsetLeft,where.y-fInsetTop);
         if(index>=0) {
             const auto& style=fTextDocument->ParagraphAtIndex(index).Style();

@@ -134,7 +134,7 @@ Open **Settings → GIPHY**, paste your own key into the masked field, and choos
 
 The saved key is never displayed or copied into the edit field. Haiku may request permission to access KeyStore. GIPHY search uses verified HTTPS without redirects and sends the query and API key to GIPHY; neither is written to application logs. A profile backup alone does not contain the key. No shared key or legacy system-file fallback is included.
 
-## Images and video (beta 10)
+## Images and video (beta 11)
 
 When upload fields are blank, the client discovers XEP-0363 services advertised by
 its authenticated account server. Automatic discovery accepts only a service in
@@ -144,13 +144,16 @@ a separate CDN or uses a nonstandard port, enter its exact host in Settings → 
 Neither arbitrary message links nor room members can add trusted download hosts.
 
 Old URL-only records from that host are recognized again when history is displayed.
-PNG, JPEG, GIF and WebP keep their inline previews. **Play video** downloads the
-clip on demand (maximum 50 MiB), then plays it inside the message bubble. Controls
-provide play/pause, replay, 10-second backward/forward seeking, mute and close.
-Seeking while paused keeps the video paused. There is no autoplay. Only one video
-plays at a time across conversations; leaving a conversation pauses its video.
-Closing the conversation or app stops its player. The private downloaded file is
-retained until the decoder finishes closing, then normal cache cleanup applies.
+PNG, JPEG, GIF and WebP keep their inline previews. Visible videos download
+in the background (maximum 50 MiB per clip) and show a static preview, without
+starting playback or sound. Press the centered play button to play inside the
+message bubble. Click the video to pause; the play button appears again. There
+is no text, seek bar or control strip below the image. Previews remain when you
+play another video. Only one video plays at a time across conversations; leaving
+a conversation pauses its video. Closing the conversation or app stops its
+player. Downloads and decoded previews use bounded caches. Older offscreen
+previews may be regenerated when needed. The private downloaded file is retained
+until the decoder finishes closing, then normal cache cleanup applies.
 
 Codecs depend on the installed Haiku media add-ons. Inline playback supports
 videos up to 4096 × 2160 pixels and 24 hours, with a preview up to 480 × 270 pixels.
