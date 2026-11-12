@@ -1,5 +1,7 @@
 # MímisSendir
 
+<img src="resources/icons/mimisendir.svg" width="96" alt="Mímir speaking-head icon">
+
 Native messaging for **Haiku x86_64**, developed by **Kambuzi EDB**, based on [Renga](https://pulkomandy.tk/projects/renga).
 
 [Download beta releases](https://github.com/kambuziarendal/MimisSendir/releases) · [Install and configure](docs/public/CLIENT.md) · [Build](COMPILING.md) · [Report a bug](https://github.com/kambuziarendal/MimisSendir/issues)
@@ -8,6 +10,10 @@ Native messaging for **Haiku x86_64**, developed by **Kambuzi EDB**, based on [R
 ![MímisSendir group conversation in light mode](docs/screenshots/group-light.png)
 
 Real Haiku screenshots with fictional accounts, messages and artwork. No private conversations are shown.
+
+## Why we built it
+
+We wanted to use Haiku as our daily driver. Being able to keep using Signal was the last obstacle, so we built MímisSendir to close that gap. This started as a tool for our own everyday desktop, and we are sharing it for others who want to make the same move.
 
 ## Features
 
@@ -31,6 +37,11 @@ The newest client is **beta 6**. Earlier betas are retained for comparison and r
 Tested on Haiku R1/beta6 hrev59866+79, x86_64. No hosted messaging account is included. Signal needs an existing phone account and a separate bridge; **Signal encryption terminates at that bridge**, not at this Haiku application. This is not an official Signal client. See [security and privacy](docs/public/SECURITY-PRIVACY.md).
 
 The package replaces Renga and preserves its profile/application identity for upgrades. Do not install both side by side. Back up your profile before upgrading. Long histories can still make the UI slow; interoperability beyond the tested server setup is not guaranteed.
+
+## Plans
+
+- Make the self-hosted bridge easier to install, with a guided setup and a clean-install test.
+- Explore a **Matrix bridge via mautrix** as a backup to the current Signal/XMPP route. This is planned work, not an implemented fallback or an automatic failover feature.
 
 ## Development and credits
 
