@@ -15,6 +15,13 @@
 #include "ui/StickerPackWindow.h"
 #include "network/SignalStickers.h"
 #include <InterfaceKit.h>
+#include <FindDirectory.h>
+#include <filesystem>
+#include <sys/stat.h>
+#include "support/ProfileMigration.h"
+#include "support/CredentialStore.h"
+#include "support/ServiceKeys.h"
+#include "ui/AvatarCache.h"
 
 #include "BlabberApp.h"
 
@@ -27,16 +34,64 @@
 #include "ui/MainWindow.h"
 #include "ui/ModalAlertFactory.h"
 
-const char* kAppMIMEType = "application/x-vnd.Haiku-Jabber";
+const char* kAppMIMEType = "application/x-vnd.Kambuzi-MimisSendir";
+
+namespace {
+void PrepareProfile() {
+    namespace fs = std::filesystem;
+    BPath settings;
+    if (find_directory(B_USER_SETTINGS_DIRECTORY, &settings) != B_OK) std::exit(EXIT_FAILURE);
+    const fs::path parent(settings.Path()), profile = parent / "MimisSendir";
+    try {
+        const auto state = fs::symlink_status(profile);
+        if (state.type() != fs::file_type::not_found) {
+            if (state.type() == fs::file_type::directory) return;
+            throw std::runtime_error("The MímisSendir profile location is not a directory. It was not changed.");
+        }
+        const auto legacy = parent / "jabber-for-beos";
+        if (fs::symlink_status(legacy).type() != fs::file_type::not_found) {
+            auto* question = new BAlert("MímisSendir profile",
+                "An earlier MímisSendir or Renga profile was found. Copy its settings, history and media "
+                "to a separate MímisSendir profile? The original will stay unchanged. "
+                "Close Renga and earlier MímisSendir versions before copying. "
+                "Haiku may ask permission to copy the saved account password.",
+                "Quit", "Start fresh", "Copy profile");
+            const int32 choice = question->Go();
+            if (choice == 0) std::exit(EXIT_SUCCESS);
+            if (choice == 2) {
+                if (be_roster->IsRunning("application/x-vnd.Haiku-Jabber"))
+                    throw std::runtime_error("Close Renga or the earlier MímisSendir first, then start MímisSendir again. Neither profile was changed.");
+                std::string error;
+                if (!ProfileMigration::Copy(legacy.string(), profile.string(), error))
+                    throw std::runtime_error(error);
+                auto* imported = BlabberSettings::Instance();
+                // Import only the selected profile's account, never enumerate the old keyring.
+                imported->SetData("import-legacy-credential",
+                    imported->Data("last-login").value_or("").c_str());
+                if (!imported->WriteToFile())
+                    throw std::runtime_error("The profile was copied, but the credential import preference could not be saved. Check free space before restarting.");
+                return;
+            }
+        }
+        if (mkdir(profile.c_str(), 0700) != 0)
+            throw std::runtime_error("Could not create the MímisSendir profile. Check free space and permissions.");
+    } catch (const std::exception& error) {
+        (new BAlert("MímisSendir profile", error.what(), "Quit"))->Go();
+        std::exit(EXIT_FAILURE);
+    }
+}
+}
 
 BlabberApp::BlabberApp()
 	: BApplication(kAppMIMEType)
 {
-    for(const char* type : {"application/x-vnd.Be.URL.sgnl","application/x-vnd.Be.URL.renga-stickers"}) {
+    PrepareProfile();
+    for(const char* type : {"application/x-vnd.Be.URL.sgnl","application/x-vnd.Be.URL.mimissendir-stickers"}) {
         BMimeType mime(type);if(!mime.IsInstalled())mime.Install();
         char preferred[B_MIME_TYPE_LENGTH]={};
-        if(mime.GetPreferredApp(preferred)!=B_OK||!*preferred||std::string(preferred)==kAppMIMEType)
-            mime.SetPreferredApp("application/x-vnd.Kambuzi-RengaStickerLink");
+        if(mime.GetPreferredApp(preferred)!=B_OK||!*preferred||std::string(preferred)==kAppMIMEType
+            || std::string(preferred)=="application/x-vnd.Kambuzi-RengaStickerLink")
+            mime.SetPreferredApp("application/x-vnd.Kambuzi-MimisSendirStickerLink");
     }
     // Re-register the executable the user actually started. A development or
     // predecessor path may otherwise remain cached by Haiku's MIME database.
@@ -44,7 +99,7 @@ BlabberApp::BlabberApp()
     if (GetAppInfo(&runningApp) == B_OK) {
         BMimeType appMime(kAppMIMEType);
         appMime.SetAppHint(&runningApp.ref);
-        // Keep the established MIME/keyring identity, but refresh a predecessor's
+        // Refresh only our independent MIME identity, never upstream Renga's
         // cached app icon from the executable actually running after an upgrade.
         BFile executable(&runningApp.ref, B_READ_ONLY);
         BAppFileInfo info(&executable);
@@ -60,14 +115,14 @@ BlabberApp::BlabberApp()
         }
         std::free(icon);
     }
-    BMimeType packFile("application/x-vnd.Kambuzi-RengaSticker");
+    BMimeType packFile("application/x-vnd.Kambuzi-MimisSendirSticker");
     if (!packFile.IsInstalled()) packFile.Install();
     packFile.SetShortDescription("MímisSendir sticker pack link");
     packFile.SetPreferredApp(kAppMIMEType);
     BMessage extensions;
-    extensions.AddString("extensions", "renga-sticker");
+    extensions.AddString("extensions", "mimissendir-sticker");
     packFile.SetFileExtensions(&extensions);
-    packFile.SetSnifferRule("0.9 [0] ('RENGA-STICKER-LINK 1')");
+    packFile.SetSnifferRule("0.9 [0] ('MIMISSENDIR-STICKER-LINK 1')");
 
 	// launch the message repeater looper
 	MessageRepeater::Instance()->Run();
@@ -96,6 +151,9 @@ BlabberApp::BlabberApp()
 
 BlabberApp::~BlabberApp()
 {
+    Credentials::Shutdown();
+    ServiceKeys::Shutdown();
+    Avatars::Shutdown();
 	// take down the message repeater
 	MessageRepeater::Instance()->Lock();
 	MessageRepeater::Instance()->Quit();
@@ -119,7 +177,8 @@ bool
 BlabberApp::QuitRequested()
 {
 	JabberSpeak::Instance()->SendDisconnect();
-	if (!JabberSpeak::Instance()->IsReadyForConnection()) {
+	if (!JabberSpeak::Instance()->IsReadyForConnection()
+        || !Credentials::Idle() || !ServiceKeys::Idle()) {
 		fQuitPending = true;
 		return false;
 	}
@@ -131,7 +190,7 @@ BlabberApp::QuitRequested()
 
 void BlabberApp::MessageReceived(BMessage* message)
 {
-	if (message->what == kConnectionStopped) {
+	if (message->what == kConnectionStopped || message->what == 'bRdy') {
 		if (fQuitPending) PostMessage(B_QUIT_REQUESTED);
 		return;
 	}

@@ -207,6 +207,8 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
                 if (status == B_OK) {
                     _login_password->SetText(msg->GetString("password", ""));
                     _login_resource = msg->GetString("resource", "");
+                    BlabberSettings::Instance()->RemoveData("import-legacy-credential");
+                    BlabberSettings::Instance()->WriteToFile();
                 }
                 // Connection errors may arrive while the asynchronous keyring load
                 // is pending. Only replace the hint owned by this operation.
@@ -218,7 +220,11 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
                     PostMessage(JAB_LOGIN);
                 fAutoLoginPending = false;
             } else if (operation == "remove") {
-                if (status == B_OK) _login_username->RemoveEntry(msg->GetString("account", ""));
+                if (status == B_OK) {
+                    _login_username->RemoveEntry(msg->GetString("account", ""));
+                    BlabberSettings::Instance()->RemoveData("import-legacy-credential");
+                    BlabberSettings::Instance()->WriteToFile();
+                }
                 else fLoginErrorMessage->SetText("Account was not removed. Check keyring access.");
             } else if (operation == "save" && status == B_OK) {
                 const auto last = BlabberSettings::Instance()->Data("last-login");
@@ -308,8 +314,7 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
 			} else {
 				gloox::JID myjid(_login_username->Text());
 				if (_login_resource.empty()) {
-					char buffer[16];
-					strcpy(buffer, "Renga-XXXXXX");
+					char buffer[] = "MimisSendir-XXXXXX";
 					mktemp(buffer);
 					_login_resource = buffer;
 				}
@@ -510,7 +515,7 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
 		{
 			BPath path;
 			find_directory(B_SYSTEM_DOCUMENTATION_DIRECTORY, &path, false);
-			path.Append("packages/renga_signal/Renga/user_guide.html");
+			path.Append("packages/mimissendir/Renga/user_guide.html");
 
 			BString resolved("file://");
 			resolved += path.Path();
@@ -1594,6 +1599,8 @@ void BlabberMainWindow::LoadCredentials(bool initial)
     request.AddString("operation", "load");
     request.AddString("account", _login_username->Text());
     request.AddBool("initial", initial);
+    request.AddBool("import-legacy", BlabberSettings::Instance()->Data("import-legacy-credential")
+        .value_or("") == _login_username->Text());
     request.AddUInt64("request", ++fCredentialRequest);
     fCredentialDraft = _login_password->Text();
     fLoginErrorMessage->SetText(kCredentialLoading);

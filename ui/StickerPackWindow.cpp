@@ -82,7 +82,7 @@ StickerPackWindow::~StickerPackWindow(){if(fJob)fJob->cancelled=true;delete fTim
 void StickerPackWindow::Import() {
     if(fJob||!fPrepared)return;
     fImport->SetEnabled(false);auto job=std::make_shared<Job>();job->importing=true;job->prepared=fPrepared;fJob=job;
-    BPath settings;if(find_directory(B_USER_SETTINGS_DIRECTORY,&settings)!=B_OK){job->error="Could not locate your local library.";job->done=true;return;}settings.Append("jabber-for-beos");
+    BPath settings;if(find_directory(B_USER_SETTINGS_DIRECTORY,&settings)!=B_OK){job->error="Could not locate your local library.";job->done=true;return;}settings.Append("MimisSendir");
     Media::Library library(settings.Path(),fAccount);
     try {std::thread([job,library]{
         try {

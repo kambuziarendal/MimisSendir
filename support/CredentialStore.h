@@ -9,4 +9,6 @@ constexpr uint32 kResult = 'kRes';
 // never wait for a keyring permission prompt. Results contain sensitive fields:
 // keep them in memory and never PrintToStream/log them.
 bool Submit(BMessage request, const BMessenger& target);
+bool Idle();
+void Shutdown();
 }

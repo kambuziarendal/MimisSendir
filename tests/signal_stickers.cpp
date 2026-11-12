@@ -13,7 +13,7 @@ int main(){
     const std::string id(32,'a'),key(64,'0');
     auto link=ParseLink("sgnl://addstickers/?pack_id="+id+"&pack_key="+key);
     Check(bool(link),"standard browser link accepted");
-    for(auto prefix:{"sgnl://addstickers?","https://signal.art/addstickers/#","renga-stickers://addstickers/?"})
+    for(auto prefix:{"sgnl://addstickers?","https://signal.art/addstickers/#","mimissendir-stickers://addstickers/?","renga-stickers://addstickers/?"})
         Check(bool(ParseLink(std::string(prefix)+"pack_key="+key+"&pack_id="+id)),"alternate link and field ordering");
     for(auto bad:{"http://signal.art/addstickers/#","https://signal.art.evil/addstickers/#","file:///tmp/","sgnl://other/?"})
         Check(!ParseLink(std::string(bad)+"pack_id="+id+"&pack_key="+key),"unrecognized origin rejected");
@@ -21,6 +21,7 @@ int main(){
     Check(!ParseLink(url+"&pack_id="+id),"duplicate key rejected");
     Check(!ParseLink(url+"&other=1"),"extra fields rejected");
     Check(!ParseLink(url.substr(0,url.size()-1)),"short key rejected");
+    Check(bool(ParseLinkFile("MIMISSENDIR-STICKER-LINK 1\n" + url + "\n")), "independent pack file accepted");
     const auto fileText = "RENGA-STICKER-LINK 1\n" + url + "\n";
     Check(bool(ParseLinkFile(fileText)), "native pack file accepted");
     Check(bool(ParseLinkFile(fileText.substr(0, fileText.size()-1))), "pack file without final newline accepted");

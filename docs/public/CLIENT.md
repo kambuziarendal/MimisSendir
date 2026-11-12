@@ -20,13 +20,17 @@ Install the published **HPKG** from the GitHub release page. Check the exact ver
 manifest. Haiku's package manager must resolve dependencies; do not copy random
 shared libraries into the application directory. Restart the application after upgrading.
 
-The package conflicts with upstream Renga and retains the existing application/profile identity. Upgrades preserve history/settings. Side-by-side installation is not supported. Never delete a profile to solve an upgrade problem.
+From beta 8, MímisSendir and upstream Renga can be installed side by side. They have independent application IDs, settings, caches, sound events and password keyrings. MímisSendir does not replace the upstream package or change its profile. Never delete a profile to solve an upgrade problem.
+
+On first launch, if the legacy `~/config/settings/jabber-for-beos/` profile exists, choose **Copy profile**, **Start fresh** or **Quit**. Close Renga and earlier MímisSendir versions before copying. The import copies settings, message history, receipts, roster/sidebar state and imported media into `~/config/settings/MimisSendir/`. It never merges into or overwrites an existing destination. An interrupted/failed copy is not activated; the original remains untouched. Copies containing symlinks or special files are refused.
+
+If you choose to copy, the saved password for the profile's last account is copied from the `XMPP` keyring into the separate `MimisSendir` keyring when Haiku allows access. The original key is never removed or changed. If access is denied, enter the password yourself. Other accounts can be added normally. A new XMPP resource avoids evicting an upstream client's session. Subsequent use and account removal affect only the MímisSendir keyring. Avatar caches are rebuilt rather than shared.
 
 Before upgrading, close the application and back up
-`~/config/settings/jabber-for-beos/`. This includes local conversation data;
+`~/config/settings/MimisSendir/` (and `jabber-for-beos/` before the first import). This includes local conversation data;
 protect it as private material. Passwords use Haiku's KeyStore and are not made
 portable merely by copying that directory. Avatar cache is under
-`~/config/cache/Renga/avatars-v2/`; it is not the authoritative message store.
+`~/config/cache/MimisSendir/avatars-v2/`; it is not the authoritative message store.
 
 Uninstall through Haiku's package manager. Removing the app does not unlink a
 Signal device, remove server-side history or intentionally erase the local profile.
@@ -43,7 +47,7 @@ sounds. Save applies only edited fields; Cancel or closing the window discards e
 Connection, bridge and upload changes apply at the next sign-in. Saving neither
 restarts nor pairs a bridge. Passwords remain in KeyStore.
 
-For operator-managed advanced configuration, profiles live in `~/config/settings/jabber-for-beos/app-settings`.
+For operator-managed advanced configuration, profiles live in `~/config/settings/MimisSendir/app-settings`.
 Close the application, back up this file, and merge only the required elements from
 [the example](examples/app-settings.xml), keeping the existing `<container>` root
 and unrelated settings. XML must remain well formed; malformed settings can be
@@ -95,14 +99,14 @@ Incoming messages with read-marker support are acknowledged after a short, stabl
 ## Stickers and GIFs
 
 Direct installation from Signal Stickers works in **WebPositive** (user-verified).
-The tested Firefox-on-Haiku workaround uses a downloaded `.renga-sticker` link file
+The tested Firefox-on-Haiku workaround uses a downloaded `.mimissendir-sticker` link file
 from the supplied installer page: click the pack, then open the download in the client,
 review the pack and import. Do not claim that Signal Stickers' own install button
 works in Firefox. Packs are downloaded, validated and imported, not bundled as an
 unlicensed collection with the public application.
 
 Local GIFs work without a GIPHY key. Online GIPHY search is optional and currently
-needs a separately configured key; the private key must never be distributed in
+uses your key from Settings → GIPHY; the private key must never be distributed in
 a public HPKG. No provider key is included. Provider terms,
 request limits and attribution apply. Sticker links may contain pack decryption
 keys; do not paste them into public bug reports.
@@ -121,3 +125,11 @@ keys; do not paste them into public bug reports.
 | Firefox sticker button does nothing | Use WebPositive or the tested downloaded-link workflow. |
 
 See [support](SUPPORT.md) for a privacy-preserving report.
+
+Older `.renga-sticker` files can still be opened explicitly in MímisSendir. Their old file association is not taken over. New links use `.mimissendir-sticker`. Existing Signal-protocol handlers selected for other applications are preserved.
+
+## GIPHY API key
+
+Open **Settings → GIPHY**, paste your own key into the masked field, and choose **Save key**. The key is stored in Haiku KeyStore (`MimisSendir-Services`), not the XML profile. Only a non-secret key identifier is kept in settings. Saving a replacement stores it before changing the active selection, then removes the previous key. A denied save leaves the previous key working. **Remove key** deletes the selected key and disables online search. These two buttons apply immediately; the main Settings Save/Cancel buttons concern the other settings.
+
+The saved key is never displayed or copied into the edit field. Haiku may request permission to access KeyStore. GIPHY search uses verified HTTPS without redirects and sends the query and API key to GIPHY; neither is written to application logs. A profile backup alone does not contain the key. No shared key or legacy system-file fallback is included.

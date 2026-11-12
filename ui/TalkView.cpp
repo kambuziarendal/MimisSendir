@@ -342,7 +342,7 @@ void TalkView::AttachedToWindow()
     if(auto* avatar=dynamic_cast<ConversationAvatar*>(FindView("conversation-avatar")))avatar->SetIdentity(IsGroupChat()?_group_room:_session->target().bare());
     if(!fDatePoll){BMessage tick('dPol');fDatePoll=new BMessageRunner(BMessenger(this),tick,60000000);}
     if(!fHistory) {
-        BPath root;find_directory(B_USER_SETTINGS_DIRECTORY,&root);root.Append("jabber-for-beos");
+        BPath root;find_directory(B_USER_SETTINGS_DIRECTORY,&root);root.Append("MimisSendir");
         fHistory=std::make_unique<ChatHistory>(root.Path(),JabberSpeak::Instance()->GlooxClient()->jid().bare(),
             IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat());
         RestoreHistory();

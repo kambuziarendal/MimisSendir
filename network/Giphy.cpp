@@ -1,5 +1,6 @@
 // Copyright 2026 Kambuzi. Distributed under the MIT license.
 #include "Giphy.h"
+#include "support/ServiceKeys.h"
 #include <private/shared/Json.h>
 #include <FindDirectory.h>
 #include <Path.h>
@@ -37,7 +38,7 @@ bool Get(const std::string& url,Receive& receive,std::string& error) {
     curl_easy_setopt(c,CURLOPT_CONNECTTIMEOUT,10L);curl_easy_setopt(c,CURLOPT_TIMEOUT,30L);
     curl_easy_setopt(c,CURLOPT_WRITEFUNCTION,Write);curl_easy_setopt(c,CURLOPT_WRITEDATA,&receive);
     curl_easy_setopt(c,CURLOPT_NOPROGRESS,0L);curl_easy_setopt(c,CURLOPT_XFERINFOFUNCTION,Progress);
-    curl_easy_setopt(c,CURLOPT_XFERINFODATA,&receive);curl_easy_setopt(c,CURLOPT_USERAGENT,"mimissendir/0.1.0-beta.7");
+    curl_easy_setopt(c,CURLOPT_XFERINFODATA,&receive);curl_easy_setopt(c,CURLOPT_USERAGENT,"mimissendir/0.1.0-beta.8");
     auto result=curl_easy_perform(c);long status=0;curl_easy_getinfo(c,CURLINFO_RESPONSE_CODE,&status);
     if(result==CURLE_OK && status==200)return true;
     error=receive.cancelled->load()?"Cancelled.":status==429?"GIPHY search limit reached. Try again later.":status==401||status==403?"GIPHY rejected the API key.":"Could not load GIPHY. Check the connection or try another GIF.";
@@ -87,11 +88,11 @@ std::vector<Item> Parse(const std::string& json,std::string& error) {
     }
     return items;
 }
-std::vector<Item> Search(const std::string& query,unsigned offset,const std::atomic_bool& cancelled,std::string& error) {
+std::vector<Item> Search(const std::string& query,unsigned offset,const std::atomic_bool& cancelled,std::string& error,const std::string& keyId) {
     if(query.size()>128||offset>480){error="Search is too long or the last page was reached.";return {};}
-    BPath p;find_directory(B_SYSTEM_DATA_DIRECTORY,&p);p.Append("renga/giphy-api-key");
-    std::ifstream input(p.Path());std::string key;std::getline(input,key);
-    if(key.empty()||key.size()>128||key.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")!=std::string::npos){error="GIPHY API key is not configured.";return {};}
+    if (cancelled.load()) { error="Cancelled."; return {}; }
+    const auto key = ServiceKeys::Load(keyId, error);
+    if (key.empty() || cancelled.load()) return {};
     std::string url="https://api.giphy.com/v1/gifs/"+std::string(query.empty()?"trending":"search")+"?api_key="+Escape(key)+"&limit=24&rating=g&lang=en&offset="+std::to_string(offset);
     if(!query.empty())url+="&q="+Escape(query);
     Receive r;r.limit=2*1024*1024;r.cancelled=&cancelled;

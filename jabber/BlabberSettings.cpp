@@ -17,7 +17,7 @@ BlabberSettings *BlabberSettings::_instance = NULL;
 
 BlabberSettings *BlabberSettings::Instance() {
 	if (_instance == NULL) {
-		_instance = new BlabberSettings("jabber-for-beos/app-settings");
+		_instance = new BlabberSettings("MimisSendir/app-settings");
 	}
 
 	return _instance;

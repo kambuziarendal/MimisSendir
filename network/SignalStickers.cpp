@@ -47,7 +47,7 @@ std::string Base(const Link& link){return "https://cdn-ca.signal.org/stickers/"+
 }
 std::optional<Link> ParseLink(const std::string& text) {
     if(text.size()>1024)return {};
-    const std::vector<std::string> prefixes={"sgnl://addstickers/?","sgnl://addstickers?","https://signal.art/addstickers/#","renga-stickers://addstickers/?"};
+    const std::vector<std::string> prefixes={"sgnl://addstickers/?","sgnl://addstickers?","https://signal.art/addstickers/#","mimissendir-stickers://addstickers/?","renga-stickers://addstickers/?"};
     std::string query;
     for(const auto& prefix:prefixes)if(text.compare(0,prefix.size(),prefix)==0){query=text.substr(prefix.size());break;}
     if(query.empty())return {};
@@ -65,7 +65,8 @@ std::optional<Link> ParseLink(const std::string& text) {
     return link;
 }
 std::optional<Link> ParseLinkFile(const std::string& text) {
-    const std::string header = "RENGA-STICKER-LINK 1\n";
+    const std::string header = text.starts_with("MIMISSENDIR-STICKER-LINK 1\n")
+        ? "MIMISSENDIR-STICKER-LINK 1\n" : "RENGA-STICKER-LINK 1\n";
     if (text.size() > 1100 || text.compare(0, header.size(), header) != 0)
         return {};
     auto url = text.substr(header.size());
@@ -74,7 +75,7 @@ std::optional<Link> ParseLinkFile(const std::string& text) {
 }
 
 std::optional<Link> ReadLinkFile(const std::string& path, std::string& error) {
-    error = "Could not read this sticker link. Download the .renga-sticker file again and open it in MímisSendir.";
+    error = "Could not read this sticker link. Download the .mimissendir-sticker file again and open it in MímisSendir.";
     // Do not block on special files or follow links supplied as pack files.
     const int fd = open(path.c_str(), O_RDONLY | O_NONBLOCK | O_NOFOLLOW);
     if (fd < 0) return {};

@@ -5,6 +5,7 @@
 #include "Messages.h"
 #include "config/PrivateProfile.h"
 #include "support/SettingsValidation.h"
+#include "support/ServiceKeys.h"
 #include "ui/MainWindow.h"
 #include <Messenger.h>
 #include <Alert.h>
@@ -54,6 +55,7 @@ PreferencesWindow::PreferencesWindow()
     auto* connection = new BGroupView("Connection", B_VERTICAL);
     auto* bridge = new BGroupView("Bridge", B_VERTICAL);
     auto* uploads = new BGroupView("Uploads", B_VERTICAL);
+    auto* giphy = new BGroupView("GIPHY", B_VERTICAL);
     auto* messages = new BGroupView("Messages", B_VERTICAL);
     auto accountText = "XMPP account: " + settings->Data("last-login").value_or("Not configured");
     BLayoutBuilder::Group<>(account)
@@ -106,9 +108,29 @@ PreferencesWindow::PreferencesWindow()
         .Add(Note("Appearance follows Haiku's system colors, including dark palettes."))
         .Add(Note("Messages and downloaded media are stored locally on this computer."))
         .Add(Note("Saving settings does not delete history, media or account credentials."))
-        .Add(Note("Settings location: ~/config/settings/jabber-for-beos/app-settings"))
+        .Add(Note("Settings location: ~/config/settings/MimisSendir/app-settings"))
         .AddGlue();
-    for (auto* view : {account, connection, bridge, uploads, messages}) {
+    fGiphyKeyId = settings->Data("giphy-key-id").value_or("");
+    fGiphyKey = new BTextControl("giphy-api-key", "New API key:", "", nullptr);
+    fGiphyKey->SetDivider(150);
+    fGiphyKey->TextView()->HideTyping(true);
+    fGiphyKey->TextView()->SetMaxBytes(256);
+    fStoreGiphy = new BButton("store-giphy", "Save key", new BMessage('gSet'));
+    fRemoveGiphy = new BButton("remove-giphy", "Remove key", new BMessage('gDel'));
+    fRemoveGiphy->SetEnabled(!fGiphyKeyId.empty());
+    fGiphyStatus = Note(fGiphyKeyId.empty() ? "No GIPHY key configured." : "A GIPHY key is selected in Haiku KeyStore.");
+    BLayoutBuilder::Group<>(giphy)
+        .SetInsets(B_USE_DEFAULT_SPACING)
+        .Add(Note("Optional online GIF search using your own GIPHY API key."))
+        .Add(fGiphyKey)
+        .AddGroup(B_HORIZONTAL).Add(fStoreGiphy).Add(fRemoveGiphy).AddGlue().End()
+        .Add(fGiphyStatus)
+        .Add(Note("Stored in Haiku KeyStore, never in the XML profile. The saved key is not shown."))
+        .Add(Note("Save key and Remove key apply immediately, independently of the Save button below."))
+        .Add(Note("Search sends your query and key to GIPHY over verified HTTPS."))
+        .Add(Note("Haiku may ask for KeyStore permission. No key is included with the app."))
+        .AddGlue();
+    for (auto* view : {account, connection, bridge, uploads, messages, giphy}) {
         view->SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
         fTabs->AddTab(view);
     }
@@ -128,6 +150,7 @@ PreferencesWindow::PreferencesWindow()
 PreferencesWindow::~PreferencesWindow() { _instance = nullptr; }
 void PreferencesWindow::Save()
 {
+    if (fKeyBusy) return;
     std::map<std::string, std::optional<std::string>> changes;
     for (const auto& field : fFields) {
         std::string value = field.control->Text();
@@ -182,8 +205,75 @@ void PreferencesWindow::Save()
 void PreferencesWindow::MessageReceived(BMessage* message)
 {
     switch (message->what) {
+        case 'gSet': StoreGiphyKey(); break;
+        case 'gDel': RemoveGiphyKey(); break;
+        case ServiceKeys::kResult: GiphyResult(message); break;
         case JAB_OK: Save(); break;
         case JAB_CANCEL: PostMessage(B_QUIT_REQUESTED); break;
         default: BWindow::MessageReceived(message); break;
+    }
+}
+
+bool PreferencesWindow::QuitRequested() { return !fKeyBusy; }
+void PreferencesWindow::SetKeyBusy(bool busy) {
+    fKeyBusy = busy;
+    fGiphyKey->SetEnabled(!busy);
+    fStoreGiphy->SetEnabled(!busy);
+    fRemoveGiphy->SetEnabled(!busy && !fGiphyKeyId.empty());
+    for (const char* name : {"save-settings", "cancel-settings"})
+        if (auto* button = dynamic_cast<BButton*>(FindView(name))) button->SetEnabled(!busy);
+}
+void PreferencesWindow::StoreGiphyKey() {
+    if (fKeyBusy) return;
+    if (!ServiceKeys::ValidGiphyKey(fGiphyKey->Text())) {
+        fGiphyStatus->SetText("Enter a valid API key (letters, digits, hyphen or underscore, at most 128 characters).");
+        fGiphyKey->MakeFocus(); return;
+    }
+    BMessage request; request.AddString("operation", "store"); request.AddString("key", fGiphyKey->Text());
+    if (!ServiceKeys::Submit(request, BMessenger(this))) {
+        fGiphyStatus->SetText("KeyStore is busy. Try again after the current permission prompt."); return;
+    }
+    fGiphyKey->SetText(""); SetKeyBusy(true);
+    fGiphyStatus->SetText("Saving to Haiku KeyStore. Check its permission prompt.");
+}
+void PreferencesWindow::RemoveGiphyKey() {
+    if (fKeyBusy || fGiphyKeyId.empty()) return;
+    BMessage request; request.AddString("operation", "remove"); request.AddString("id", fGiphyKeyId.c_str());
+    request.AddString("context", "disable");
+    if (!ServiceKeys::Submit(request, BMessenger(this))) { fGiphyStatus->SetText("KeyStore is busy. Try again."); return; }
+    SetKeyBusy(true); fGiphyStatus->SetText("Removing the key. Check Haiku's permission prompt.");
+}
+void PreferencesWindow::GiphyResult(BMessage* result) {
+    const auto status = result->GetInt32("status", B_ERROR);
+    const std::string operation = result->GetString("operation", "");
+    const std::string context = result->GetString("context", "");
+    SetKeyBusy(false);
+    if (operation == "store") {
+        if (status != B_OK) { fGiphyStatus->SetText("Key was not saved. The previous key is unchanged. Check KeyStore access."); return; }
+        const std::string id = result->GetString("id", "");
+        if (!ServiceKeys::ValidIdentifier(id)) { fGiphyStatus->SetText("KeyStore returned an invalid reference. The previous key is unchanged."); return; }
+        const auto old = fGiphyKeyId;
+        const bool committed = BlabberSettings::Instance()->SaveChanges({{"giphy-key-id", id}});
+        if (committed) fGiphyKeyId = id;
+        const auto cleanup = committed ? old : id;
+        fGiphyStatus->SetText(committed ? "GIPHY key saved. It will be used for the next search."
+            : "Could not update settings. The previous key is still selected. Check disk space.");
+        SetKeyBusy(false);
+        if (!cleanup.empty()) {
+            BMessage request; request.AddString("operation", "remove"); request.AddString("id", cleanup.c_str());
+            request.AddString("context", committed ? "old" : "unused");
+            if (ServiceKeys::Submit(request, BMessenger(this))) SetKeyBusy(true);
+            else fGiphyStatus->SetText("The selected key is unchanged; an unused key remains in KeyStore.");
+        }
+    } else if (context == "disable") {
+        if (status != B_OK) { fGiphyStatus->SetText("The key was not removed. Check KeyStore access and try again."); return; }
+        const bool saved = BlabberSettings::Instance()->SaveChanges({{"giphy-key-id", std::nullopt}});
+        fGiphyKeyId.clear(); SetKeyBusy(false);
+        fGiphyStatus->SetText(saved ? "GIPHY key removed. Online search is disabled."
+            : "Key removed. Settings reference could not be cleared; check disk space.");
+    } else if (context == "old" && status != B_OK) {
+        fGiphyStatus->SetText("New key saved. The previous unused key remains in KeyStore because access was denied.");
+    } else if (context == "unused" && status != B_OK) {
+        fGiphyStatus->SetText("Previous key preserved. The unused new key remains in KeyStore because access was denied.");
     }
 }

@@ -4,12 +4,12 @@
 // TODO: should these be worded in a more generic way so they can be shared with other chat apps?
 // Or is it useful to have different sounds for each app? The system sounds preferences won't
 // scale well if every app comes with a handful of sound events.
-#define kSoundNewMessage "Renga new message"
-#define kSoundNewMUCMessage "Renga new groupchat message"
-#define kSoundUserOnline "Renga user online"
-#define kSoundUserOffline "Renga user offline"
+#define kSoundNewMessage "MímisSendir new message"
+#define kSoundNewMUCMessage "MímisSendir new groupchat message"
+#define kSoundUserOnline "MímisSendir user online"
+#define kSoundUserOffline "MímisSendir user offline"
 
-// Reuse existing setting from Vision for now
-#define kSoundHighlight "Vision Nick Notification"
+// Independent mention sound, without changing another application's event.
+#define kSoundHighlight "MímisSendir mention"
 
 #endif /* SOUND_SYSTEM_H */

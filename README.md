@@ -34,11 +34,11 @@ Beta 6 adds read receipts: outgoing messages show a read indication when a match
 
 Beta 7 uses Signal-style status checks beside each outgoing message: one muted check for sent, two muted checks for delivered, and two white checks for read. It also silences historical and duplicate group-mention notifications on startup, without silencing new mentions.
 
-The newest client is **beta 7**. Earlier betas are retained for comparison and recovery, not recommended over beta 7. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Online GIPHY search is unavailable without a separately configured provider key; local GIFs work offline.
+The newest client is **beta 8**. Earlier betas are retained for comparison and recovery, not recommended over beta 8. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Add your own GIPHY API key in Settings → GIPHY; it is stored in Haiku KeyStore, not the profile XML. Local GIFs work offline without a key.
 
 Tested on Haiku R1/beta6 hrev59866+79, x86_64. No hosted messaging account is included. Signal needs an existing phone account and a separate bridge; **Signal encryption terminates at that bridge**, not at this Haiku application. This is not an official Signal client. See [security and privacy](docs/public/SECURITY-PRIVACY.md).
 
-The package replaces Renga and preserves its profile/application identity for upgrades. Do not install both side by side. Back up your profile before upgrading. Long histories can still make the UI slow; interoperability beyond the tested server setup is not guaranteed.
+From beta 8, MímisSendir has its own application identity, profile and password keyring. It can be installed alongside upstream Renga. On first launch, choose to copy an older MímisSendir/Renga profile or start fresh. Copying leaves the original unchanged. Close the old application and back up its profile first. Long histories can still make the UI slow; interoperability beyond the tested server setup is not guaranteed.
 
 ## Plans
 

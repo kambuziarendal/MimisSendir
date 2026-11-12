@@ -444,7 +444,8 @@ void RegisterAccountWindow::handleRegistrationResult(const gloox::JID&, gloox::R
 			BlabberSettings::Instance()->SetData("last-login", fUsername);
 			BKeyStore store;
 			BPasswordKey key(fPassword, B_KEY_PURPOSE_GENERIC, fUsername);
-			store.AddKey("XMPP", key);
+			store.AddKeyring("MimisSendir");
+			store.AddKey("MimisSendir", key);
 
 			// Refresh main window (disconnects a running session, but that should be ok)
 			BlabberMainWindow::Instance()->PostMessage(kResetWindow);

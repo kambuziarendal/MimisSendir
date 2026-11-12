@@ -69,15 +69,15 @@ TalkManager::TalkManager()
 	BPath path;
 	find_directory(B_USER_CACHE_DIRECTORY, &path);
 	BDirectory cacheRoot(path.Path());
-	if (!cacheRoot.Contains("Renga")) {
+	if (!cacheRoot.Contains("MimisSendir")) {
 		BDirectory temp;
-		cacheRoot.CreateDirectory("Renga", &temp);
+		cacheRoot.CreateDirectory("MimisSendir", &temp);
 		if (!temp.Contains("avatars")) {
 			temp.CreateDirectory("avatars", &fAvatarCache);
 		}
 	}
 
-	fAvatarCache.SetTo(&cacheRoot, "Renga/avatars");
+	fAvatarCache.SetTo(&cacheRoot, "MimisSendir/avatars");
 }
 
 TalkManager::~TalkManager() {

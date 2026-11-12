@@ -10,7 +10,7 @@
 	#include <app/Application.h>
 #endif
 
-#define APP_VERSION "0.1.0-beta.6"
+#define APP_VERSION "0.1.0-beta.8"
 
 namespace SignalStickers { struct Link; }
 class BlabberMainWindow;

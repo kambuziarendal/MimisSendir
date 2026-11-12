@@ -1,6 +1,6 @@
-resource app_signature "application/x-vnd.Kambuzi-RengaStickerLink";
+resource app_signature "application/x-vnd.Kambuzi-MimisSendirStickerLink";
 resource app_flags B_MULTIPLE_LAUNCH | B_BACKGROUND_APP;
 resource(1, "BEOS:FILE_TYPES") message {
     "types" = "application/x-vnd.Be.URL.sgnl",
-    "types" = "application/x-vnd.Be.URL.renga-stickers"
+    "types" = "application/x-vnd.Be.URL.mimissendir-stickers"
 };

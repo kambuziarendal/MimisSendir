@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.20)
 
 # projectname is the same as the main-executable
-project(Renga)
+project(MimisSendir)
 
 add_definitions('-gdwarf-3')
 add_definitions('-Wall' '-Wextra' '-Werror' '-Wno-multichar')
@@ -87,6 +87,8 @@ add_executable(Renga
     ui/MediaPreview.cpp
     support/AnimatedImage.cpp
     support/MediaLibrary.cpp
+	support/ServiceKeys.cpp
+	support/ProfileMigration.cpp
 	support/ImageSafety.cpp
 	support/ChatHistory.cpp
 	support/ConversationStore.cpp
@@ -191,13 +193,13 @@ add_dependencies(Renga RengaResources)
 add_custom_target(en.catkeys
 	COMMAND ${CMAKE_C_COMPILER} -E -P -I ${CMAKE_SOURCE_DIR} -DB_COLLECTING_CATKEYS
 		${LOCALIZED_SOURCES} > en.catkeys.pre
-	COMMAND collectcatkeys -s "application/x-vnd.Haiku-Jabber" -w -o en.catkeys en.catkeys.pre
+	COMMAND collectcatkeys -s "application/x-vnd.Kambuzi-MimisSendir" -w -o en.catkeys en.catkeys.pre
 	DEPENDS ${LOCALIZED_SOURCES}
 )
 
 install(TARGETS Renga RUNTIME DESTINATION apps/)
 
-install(DIRECTORY resources/Renga TYPE DOC)
+install(DIRECTORY resources/Renga DESTINATION documentation/packages/mimissendir)
 
 include_directories(${CMAKE_SOURCE_DIR})
 
@@ -297,7 +299,7 @@ if(RENGA_BUILD_NATIVE_TESTS)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-    add_executable(RengaGiphyTests tests/native/Giphy.cpp network/Giphy.cpp)
+    add_executable(RengaGiphyTests tests/native/Giphy.cpp network/Giphy.cpp support/ServiceKeys.cpp)
     target_link_libraries(RengaGiphyTests PRIVATE be shared CURL::libcurl)
     target_compile_features(RengaGiphyTests PRIVATE cxx_std_17)
 endif()
@@ -333,4 +335,15 @@ if(RENGA_BUILD_NATIVE_TESTS)
     add_executable(RengaSettingsTests tests/native/Settings.cpp jabber/FileXMLReader.cpp)
     target_compile_features(RengaSettingsTests PRIVATE cxx_std_20)
     target_link_libraries(RengaSettingsTests PRIVATE be gloox network)
+endif()
+
+if(RENGA_BUILD_NATIVE_TESTS)
+    add_executable(MimisSendirProfileTests tests/profile_migration.cpp support/ProfileMigration.cpp)
+    target_compile_features(MimisSendirProfileTests PRIVATE cxx_std_20)
+endif()
+
+if(RENGA_BUILD_NATIVE_TESTS)
+    add_executable(MimisSendirServiceKeyTests tests/native/ServiceKeys.cpp support/ServiceKeys.cpp)
+    target_compile_features(MimisSendirServiceKeyTests PRIVATE cxx_std_20)
+    target_link_libraries(MimisSendirServiceKeyTests PRIVATE be)
 endif()

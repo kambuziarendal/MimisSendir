@@ -21,9 +21,9 @@ int main(int argc, char** argv)
     char signature[B_MIME_TYPE_LENGTH] = {};
     if (info.GetVersionInfo(&version, B_APP_VERSION_KIND) != B_OK
         || version.major != 0 || version.middle != 1 || version.minor != 0
-        || version.variety != B_BETA_VERSION || version.internal != 5
+        || version.variety != B_BETA_VERSION || version.internal != 8
         || info.GetSignature(signature) != B_OK
-        || std::strcmp(signature, "application/x-vnd.Haiku-Jabber") != 0) {
+        || std::strcmp(signature, "application/x-vnd.Kambuzi-MimisSendir") != 0) {
         std::fprintf(stderr, "Missing or incorrect application version/signature resources\n");
         return 1;
     }
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
         if (!opaque || !transparent) return 1;
     }
     uint8* cached = nullptr; size_t cachedSize = 0;
-    BMimeType mime("application/x-vnd.Haiku-Jabber");
+    BMimeType mime("application/x-vnd.Kambuzi-MimisSendir");
     const bool match = mime.GetIcon(&cached, &cachedSize) == B_OK && cachedSize == size
         && std::memcmp(icon, cached, size) == 0;
     std::free(icon); std::free(cached);

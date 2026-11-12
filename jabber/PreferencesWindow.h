@@ -6,12 +6,15 @@
 #include <vector>
 class BTextControl;
 class BCheckBox;
+class BStringView;
+class BButton;
 class BTabView;
 class PreferencesWindow : public BWindow {
 public:
     static PreferencesWindow* Instance();
     PreferencesWindow();
     ~PreferencesWindow() override;
+    bool QuitRequested() override;
     void MessageReceived(BMessage* message) override;
 private:
     enum class Kind { Text, Host, Port, Domain, Authority, Certificate };
@@ -28,6 +31,16 @@ private:
         Kind kind, int tab, bool optional = false);
     BCheckBox* AddFlag(const char* key, const char* label);
     void Save();
+    void StoreGiphyKey();
+    void RemoveGiphyKey();
+    void GiphyResult(BMessage* message);
+    void SetKeyBusy(bool busy);
+    BTextControl* fGiphyKey;
+    BStringView* fGiphyStatus;
+    BButton* fStoreGiphy;
+    BButton* fRemoveGiphy;
+    bool fKeyBusy = false;
+    std::string fGiphyKeyId;
     static PreferencesWindow* _instance;
     BTabView* fTabs;
     std::vector<Field> fFields;

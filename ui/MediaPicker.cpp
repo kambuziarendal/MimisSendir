@@ -1,3 +1,4 @@
+#include "jabber/BlabberSettings.h"
 // Copyright 2026 Kambuzi. Distributed under the MIT license.
 #include "MediaPicker.h"
 #include "MediaPreview.h"
@@ -29,8 +30,8 @@
 #include <thread>
 
 namespace {
-std::string BuiltinGIFs() { BPath p;find_directory(B_SYSTEM_DATA_DIRECTORY,&p);p.Append("renga/gifs");return p.Path(); }
-std::string Settings() { BPath p;find_directory(B_USER_SETTINGS_DIRECTORY,&p);p.Append("jabber-for-beos");return p.Path(); }
+std::string BuiltinGIFs() { BPath p;find_directory(B_SYSTEM_DATA_DIRECTORY,&p);p.Append("mimissendir/gifs");return p.Path(); }
+std::string Settings() { BPath p;find_directory(B_USER_SETTINGS_DIRECTORY,&p);p.Append("MimisSendir");return p.Path(); }
 std::string Lower(std::string text) { for(auto& c:text)c=std::tolower(static_cast<unsigned char>(c));return text; }
 }
 class PreviewView final : public BView {
@@ -46,7 +47,7 @@ class AttributionView final : public BView {
     std::unique_ptr<BBitmap> logo;
 public:
     AttributionView():BView("giphy-attribution",B_WILL_DRAW) {
-        SetViewUIColor(B_PANEL_BACKGROUND_COLOR);BPath path;find_directory(B_SYSTEM_DATA_DIRECTORY,&path);path.Append("renga/giphy/powered-by.png");
+        SetViewUIColor(B_PANEL_BACKGROUND_COLOR);BPath path;find_directory(B_SYSTEM_DATA_DIRECTORY,&path);path.Append("mimissendir/giphy/powered-by.png");
         logo.reset(BTranslationUtils::GetBitmap(path.Path()));SetExplicitMinSize(BSize(200,42));SetExplicitMaxSize(BSize(200,42));
     }
     void Draw(BRect) override { if(logo) {SetDrawingMode(B_OP_ALPHA);DrawBitmap(logo.get(),BPoint(0,0));SetDrawingMode(B_OP_COPY);}else DrawString("Powered By GIPHY",BPoint(4,25)); }
@@ -225,7 +226,8 @@ void MediaPicker::SearchGiphy() {
     fList->SetSelectionMessage(nullptr);while(fList->CountItems())delete fList->RemoveItem(int32(0));fList->SetSelectionMessage(new BMessage('mSel'));fEntries.clear();
     auto job=std::make_shared<SearchJob>();fSearchJob=job;std::string query=fSearch->Text();auto offset=fOffset;
     fSearchOnline->SetEnabled(false);fOnlineNext->SetEnabled(false);fOnlinePrevious->SetEnabled(false);fStatus->SetText("Searching GIPHY…");
-    try {std::thread([job,query,offset]{try{job->items=Giphy::Search(query,offset,job->cancelled,job->error);}catch(...){job->error="GIPHY search could not complete.";}job->done=true;}).detach();}
+    const auto keyId=BlabberSettings::Instance()->Data("giphy-key-id").value_or("");
+    try {std::thread([job,query,offset,keyId]{try{job->items=Giphy::Search(query,offset,job->cancelled,job->error,keyId);}catch(...){job->error="GIPHY search could not complete.";}job->done=true;}).detach();}
     catch(...){job->error="Could not start GIPHY search.";job->done=true;}
 }
 void MediaPicker::Poll() {

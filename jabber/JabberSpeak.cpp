@@ -285,7 +285,7 @@ void JabberSpeak::_ConnectionThread()
 	for (auto& ext: fClient->presenceExtensions()) {
 		gloox::Capabilities* caps = const_cast<gloox::Capabilities*>(dynamic_cast<const gloox::Capabilities*>(ext));
 		if (caps) {
-			caps->setNode("https://pulkomandy.tk/projects/renga");
+			caps->setNode("https://github.com/kambuziarendal/MimisSendir");
 			break;
 		}
 	}
@@ -616,11 +616,7 @@ JabberSpeak::onConnect()
 
 
 	if (_curr_login == "") {
-		// Anonymous user, there will be no bookmarks storage on the server.
-		// Join Renga's main room by default and add that to local bookmarks.
-		TalkManager::Instance()->JoinRoom("renga@chat.jabberfr.org", _curr_realname);
-		BookmarkManager::Instance().SetBookmark("renga@chat.jabberfr.org", _curr_realname.c_str(),
-			"Renga", true);
+		// Anonymous users choose rooms themselves; never auto-join upstream support.
 
 		GlooxClient()->disco()->getDiscoItems(gloox::JID("anon.jabberfr.org"), "", this,
 			kDiscoveryServer);

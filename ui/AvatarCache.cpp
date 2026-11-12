@@ -24,6 +24,7 @@ namespace Avatars {
 namespace {
 constexpr int kSide=96, kBytes=kSide*kSide*4;
 std::atomic<unsigned> sPending{0};
+std::atomic_bool sStopped{false};
 std::string Hash(const std::string& s) {
     unsigned char hash[32]; SHA256(reinterpret_cast<const unsigned char*>(s.data()),s.size(),hash);
     std::string out;for(auto b:hash){char hex[3];snprintf(hex,3,"%02x",b);out+=hex;}return out;
@@ -84,7 +85,7 @@ public:
         }
     }
 private:
-    std::string Path(const std::string& key){BPath root;if(find_directory(B_USER_CACHE_DIRECTORY,&root)!=B_OK)return {};return std::string(root.Path())+"/Renga/avatars-v2/"+key;}
+    std::string Path(const std::string& key){BPath root;if(find_directory(B_USER_CACHE_DIRECTORY,&root)!=B_OK)return {};return std::string(root.Path())+"/MimisSendir/avatars-v2/"+key;}
     void Save(const std::string& key,const std::shared_ptr<BBitmap>& bitmap){
         auto path=Path(key);if(path.empty())return;
         if(!bitmap){unlink(path.c_str());return;}
@@ -109,24 +110,32 @@ private:
     std::map<std::string,std::pair<std::string,std::string>> fIdentities;
     std::mutex fMutex;std::map<std::string,std::shared_ptr<Image>> fImages;std::map<std::string,std::set<std::string>> fAliases;std::map<std::string,std::string> fAliasSources;
 };
-Cache& Instance(){static auto* cache=new Cache;return *cache;}
+Cache*& Storage(){static auto* cache=new Cache;return cache;}
+Cache& Instance(){return *Storage();}
 }
 std::string Account(){return gloox::JID(BlabberSettings::Instance()->Data("last-login").value_or("")).bare();}
-std::shared_ptr<Image> Get(const std::string& account,const std::string& jid){return Instance().Get(account,jid);}
+std::shared_ptr<Image> Get(const std::string& account,const std::string& jid){return sStopped.load() ? nullptr : Instance().Get(account,jid);}
 void Receive(const std::string& account,const std::string& jid,const std::string& bytes){
-    if(bytes.size()>1024*1024||account.empty()||jid.empty())return;
+    if(sStopped.load() || bytes.size()>1024*1024||account.empty()||jid.empty())return;
     if(sPending.fetch_add(1)>=16){--sPending;return;}
     BMessage message('avIn');message.AddString("account",account.c_str());message.AddString("jid",jid.c_str());if(bytes.empty())message.AddBool("remove",true);else message.AddData("image",B_RAW_TYPE,bytes.data(),bytes.size());if(Instance().PostMessage(&message)!=B_OK)--sPending;
 }
 void Alias(const std::string& account,const std::string& occupant,const std::string& real){
-    if(account.empty()||occupant.empty()||real.empty())return;
+    if(sStopped.load() || account.empty()||occupant.empty()||real.empty())return;
     BMessage message('avAl');message.AddString("account",account.c_str());message.AddString("jid",occupant.c_str());message.AddString("real",gloox::JID(real).bare().c_str());Instance().PostMessage(&message);
 }
 void RefreshAccount(const std::string& account) {
-    if(account.empty())return;
+    if(sStopped.load() || account.empty())return;
     BMessage message('avRf');message.AddString("account",account.c_str());Instance().PostMessage(&message);
 }
-void Watch(BHandler* handler){Instance().StartWatching(handler,kChanged);}
-void Unwatch(BHandler* handler){Instance().StopWatching(handler,kChanged);}
+void Watch(BHandler* handler){if(!sStopped.load())Instance().StartWatching(handler,kChanged);}
+void Unwatch(BHandler* handler){if(!sStopped.load())Instance().StopWatching(handler,kChanged);}
+
+void Shutdown() {
+    sStopped = true;
+    auto*& cache = Storage();
+    if (cache && cache->Lock()) cache->Quit();
+    cache = nullptr;
+}
 
 }

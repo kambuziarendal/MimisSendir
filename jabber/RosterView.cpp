@@ -498,7 +498,7 @@ void RosterView::SetAccount(const std::string& account) {
     if (account == fAccount) return;
     fAccount = account; fRecent.Account(account); fRooms.clear();
     BPath path; find_directory(B_USER_SETTINGS_DIRECTORY, &path);
-    path.Append("jabber-for-beos");
+    path.Append("MimisSendir");
     unsigned char digest[SHA256_DIGEST_LENGTH];
     SHA256(reinterpret_cast<const unsigned char*>(account.data()), account.size(), digest);
     std::string filename = "recents-";

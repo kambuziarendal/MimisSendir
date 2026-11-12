@@ -1,7 +1,7 @@
 
-resource app_signature "application/x-vnd.Haiku-Jabber";
+resource app_signature "application/x-vnd.Kambuzi-MimisSendir";
 
-// Protocol links must reuse Renga even if an older executable path is cached.
+// Protocol links must reuse MímisSendir even if an older executable path is cached.
 resource app_flags B_EXCLUSIVE_LAUNCH;
 
 resource app_version {
@@ -10,9 +10,9 @@ resource app_version {
 	minor  = 0,
 
 	variety = B_APPV_BETA,
-	internal = 7,
+	internal = 8,
 
-	short_info = "MímisSendir 0.1.0-beta.7",
+	short_info = "MímisSendir 0.1.0-beta.8",
 	long_info = "XMPP Instant Messaging Client"
 };
 
@@ -39,5 +39,5 @@ resource("BEOS:ICON") vector_icon {
 
 
 resource(1, "BEOS:FILE_TYPES") message {
-    "types" = "application/x-vnd.Kambuzi-RengaSticker"
+    "types" = "application/x-vnd.Kambuzi-MimisSendirSticker"
 };

@@ -53,7 +53,7 @@ JoinGroupChat::JoinGroupChat(BRect parentFrame)
 	if (lastgroup)
 		_handle->SetText(lastgroup->c_str());
 	else
-		_handle->SetText("renga@chat.jabberfr.org");
+		_handle->SetText("");
 
 	BButton *cancel = new BButton("cancel", B_TRANSLATE("Cancel"), new BMessage(JAB_CANCEL));
 	cancel->SetTarget(this);

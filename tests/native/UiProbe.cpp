@@ -13,7 +13,7 @@ int main(int argc, char** argv)
     BApplication app("application/x-vnd.Kambuzi-Renga-UiProbe");
     int count = argc > 1 ? std::atoi(argv[1]) : 100;
     if (count < 1 || count > 10000) return 2;
-    BMessenger target("application/x-vnd.Haiku-Jabber");
+    BMessenger target("application/x-vnd.Kambuzi-MimisSendir");
     if (!target.IsValid()) return 2;
     std::vector<bigtime_t> times;
     int failed = 0;

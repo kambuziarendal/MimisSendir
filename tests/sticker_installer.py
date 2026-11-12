@@ -18,8 +18,8 @@ class InstallerTest(unittest.TestCase):
             create([{'title': '<script>alert(1)</script>', 'url': self.url}], root)
             page = (root / 'INSTALL-IN-RENGA.html').read_text()
             data = base64.b64decode(re.search(r';base64,([^"]+)', page).group(1))
-            self.assertEqual(data, (root / ('a' * 32 + '.renga-sticker')).read_bytes())
-            self.assertEqual(data, ('RENGA-STICKER-LINK 1\n' + self.url + '\n').encode())
+            self.assertEqual(data, (root / ('a' * 32 + '.mimissendir-sticker')).read_bytes())
+            self.assertEqual(data, ('MIMISSENDIR-STICKER-LINK 1\n' + self.url + '\n').encode())
             self.assertNotIn('<script>', page)
             self.assertIn('&lt;script&gt;', page)
             self.assertNotIn('href="renga-stickers:', page)
@@ -36,7 +36,7 @@ class InstallerTest(unittest.TestCase):
         url = self.url.replace('sgnl://addstickers/?', 'https://signal.art/addstickers/#').replace('a' * 32, 'A' * 32)
         pack_id, data = pack_file(url)
         self.assertEqual(pack_id, 'a' * 32)
-        self.assertEqual(data, ('RENGA-STICKER-LINK 1\n' + self.url + '\n').encode())
+        self.assertEqual(data, ('MIMISSENDIR-STICKER-LINK 1\n' + self.url + '\n').encode())
 
 
 if __name__ == '__main__':
