@@ -1,5 +1,6 @@
 #include "network/BookmarkManager.h"
 #include "network/DeliveryReceipt.h"
+#include "network/ChatMarker.h"
 #include "network/MessagePresentation.h"
 #include "network/AttachmentMetadata.h"
 #include "network/UploadManager.h"
@@ -383,6 +384,8 @@ void TalkManager::DeliverMessage(const gloox::Message& msg,
 		notification.AddBool("outgoing", outgoing);
 		notification.AddString("content", Upload::AttachmentBody(msg).c_str());
 		notification.AddString("id", msg.id().c_str());
+        const auto* marker = msg.findExtension<Chat::Marker>(Chat::Marker::kExtension);
+        notification.AddBool("markable", marker && marker->markable());
 		if (const auto* delay = msg.when()) {
 			notification.AddBool("archive", true);
 			notification.AddInt64("time", Conversations::ArchiveTime(delay->stamp()));
@@ -987,7 +990,7 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
                 ? TalkView::LOCAL : TalkView::MAIN_RECIPIENT;
             if (window->AddToTalk(group_username, runs, type, autoHyperlink,
                 msg.when() ? Conversations::ArchiveTime(msg.when()->stamp()) : 0,
-                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority), msg.from().full(), msg.id()))
+                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority), msg.from().full(), msg.id(), msg.findExtension<Chat::Marker>(Chat::Marker::kExtension) && msg.findExtension<Chat::Marker>(Chat::Marker::kExtension)->markable()))
                 window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
 
 			// May not be locked if the view is not added to a winow yet
@@ -1057,6 +1060,9 @@ TalkManager::handleMUCInfo(gloox::MUCRoom *room, int features, const std::string
 {
 	BString roomjid;
 	roomjid.SetToFormat("%s@%s", room->name().c_str(), room->service().c_str());
+    // Room information arrives after joining and after configuration changes.
+    // Retry the room vCard even if an earlier pre-join request had no photo.
+    JabberSpeak::Instance()->QueueAvatar(JabberSpeak::Instance()->GlooxClient()->jid().bare(), roomjid.String());
 	BMessage message(kRoomInfo);
 	message.AddString("jid", roomjid);
 	message.AddInt32("flags", features);

@@ -22,7 +22,7 @@ AboutWindow *AboutWindow::Instance() {
 
 AboutWindow::AboutWindow()
 	: BAboutWindow(B_TRANSLATE_SYSTEM_NAME("MímisSendir"), "application/x-vnd.Haiku-Jabber") {
-	SetVersion("0.1.0-beta.4");
+	SetVersion("0.1.0-beta.5");
 	// draw credits
 	PopulateCredits();
 }

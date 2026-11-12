@@ -168,6 +168,7 @@ private:
 	thread_id                _connection_thread_id = -1;
 
 public:
+    bool QueueDisplayed(const std::string& recipient, const std::string& id, bool group);
     void QueueAvatar(const std::string& account,const std::string& jid);
     bool QueueArchive(const std::string& peer,bool group,const BMessenger& target,int64 since=0);
     bool HandleArchive(const gloox::Message& message);
@@ -185,6 +186,8 @@ private:
     };
     std::mutex fTextLock;
     std::deque<TextRequest> fTextQueue;
+    struct DisplayedRequest { std::string recipient, id; bool group; };
+    std::deque<DisplayedRequest> fDisplayedQueue;
     std::deque<std::pair<std::string,std::string>> fAvatarQueue;
     void _SendQueuedText();
     void _FailQueuedText();

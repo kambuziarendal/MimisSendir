@@ -1,4 +1,6 @@
 #include "network/ArchiveTags.h"
+#include "network/ChatMarker.h"
+#include "support/ReadTracker.h"
 #include "network/Reactions.h"
 #include "network/Reply.h"
 #include "support/ReplyDraft.h"
@@ -12,10 +14,12 @@
 #include <memory>
 #include <stdexcept>
 struct WireProbe : gloox::MessageSessionHandler, gloox::MessageHandler {
-    int contents=0,errors=0,reactions=0,corrections=0;
+    int contents=0,errors=0,reactions=0,corrections=0,markables=0;
     void handleMessageSession(gloox::MessageSession* session) override { session->registerMessageHandler(this); }
     void handleMessage(const gloox::Message& m,gloox::MessageSession*) override {
         auto kind=Chat::Classify(m);
+        auto* marker=m.findExtension<Chat::Marker>(Chat::Marker::kExtension);
+        if(marker && marker->markable()) ++markables;
         if(kind==Chat::MessageKind::Content)++contents;
         if(kind==Chat::MessageKind::DeliveryError)++errors;
         if(kind==Chat::MessageKind::Reaction)++reactions;
@@ -24,6 +28,32 @@ struct WireProbe : gloox::MessageSessionHandler, gloox::MessageHandler {
 };
 int main() {
     int checks=0;auto check=[&](bool ok,const char* label){if(!ok)throw std::runtime_error(label);++checks;};
+    Chat::Marker displayed(std::string("original<&"));
+    std::unique_ptr<gloox::Tag> displayedTag(displayed.tag());
+    check(displayedTag->name()=="displayed" && displayedTag->xmlns()=="urn:xmpp:chat-markers:0", "read marker is not a delivery receipt");
+    check(Chat::Marker(displayedTag.get()).id()=="original<&", "read target survives XML roundtrip");
+    gloox::Tag markable("markable");markable.setXmlns("urn:xmpp:chat-markers:0");
+    check(Chat::Marker(&markable).markable(), "markable opt-in parsed");
+    gloox::Tag wrongMarker("markable");wrongMarker.setXmlns("urn:wrong");
+    check(!Chat::Marker(&wrongMarker).markable(), "foreign namespace cannot opt in");
+    gloox::Tag hugeMarker("displayed");hugeMarker.setXmlns("urn:xmpp:chat-markers:0");hugeMarker.addAttribute("id",std::string(1025,'x'));
+    check(Chat::Marker(&hugeMarker).id().empty(), "oversized read target rejected");
+    gloox::Message readMessage(gloox::Message::Chat,gloox::JID("bob@fixture.test"));readMessage.addExtension(displayed.clone());
+    check(Chat::Classify(readMessage)==Chat::MessageKind::Ignore, "read notification cannot create a bubble");
+    Chat::ReadTracker reads;
+    check(reads.Observe({"first"},1000000).empty(), "visible arrival requires dwell");
+    check(reads.Observe({"first"},1250000).empty(), "brief glance does not mark read");
+    check(reads.Observe({"first"},1500000)==std::vector<std::string>{"first"}, "stable visible message eligible");
+    check(reads.Observe({"first"},1750000)==std::vector<std::string>{"first"}, "full queue leaves eligible receipt retryable");
+    reads.Submitted("first");
+    check(reads.Observe({"first"},2000000).empty(), "reaction redraw does not duplicate submitted receipt");
+    reads.Observe({"second"},2100000);reads.Observe({},2400000);
+    check(reads.Observe({"second"},2600000).empty(), "hidden or inactive view resets dwell");
+    check(reads.Observe({"second"},3100000)==std::vector<std::string>{"second"}, "returning to message can mark read");
+    Chat::ReadTracker otherReads;
+    check(otherReads.Observe({"first"},1000000).empty(), "conversation ownership isolated");
+    reads.Observe({"a","b"},4000000);
+    check(reads.Observe({"a","b"},4500000).size()==2, "each visible message marked when bridge does not expand ranges");
     gloox::Message correction(gloox::Message::Chat,gloox::JID("bob@fixture.test"),"Corrected æ 🌞");
     correction.setID("edit-2");correction.addExtension(new Chat::Correction("original<&"));
     std::unique_ptr<gloox::Tag> correctedWire(correction.tag());
@@ -94,6 +124,7 @@ int main() {
     client.registerMessageSessionHandler(&wire);
     client.registerStanzaExtension(new Chat::Reactions());
     client.registerStanzaExtension(new Chat::Correction());
+    client.registerStanzaExtension(new Chat::Marker());
     gloox::Tag incoming("message");incoming.addAttribute("type","chat");incoming.addAttribute("from","bob@fixture.test/device");new gloox::Tag(&incoming,"body","hello");
     client.handleTag(&incoming);check(wire.contents==1,"real gloox creates Chat-only session");
     gloox::Tag rejected("message");rejected.addAttribute("type","error");rejected.addAttribute("from","bob@fixture.test/device");rejected.addAttribute("id","reaction-request");
@@ -109,5 +140,7 @@ int main() {
     gloox::Tag foreignEdit("message");foreignEdit.addAttribute("type","chat");foreignEdit.addAttribute("from","bob@fixture.test/device");new gloox::Tag(&foreignEdit,"body","Ordinary text");
     auto* foreignReplace=new gloox::Tag(&foreignEdit,"replace");foreignReplace->setXmlns("urn:wrong");foreignReplace->addAttribute("id","original-wire");
     client.handleTag(&foreignEdit);check(wire.corrections==1 && wire.contents==3,"foreign replace namespace is not a correction");
+    incoming.addChild(markable.clone());client.handleTag(&incoming);
+    check(wire.markables==1, "real gloox dispatch retains marker opt-in");
     std::cout<<checks<<" reaction and attachment checks passed\n";
 }

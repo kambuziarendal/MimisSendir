@@ -69,10 +69,12 @@ bool ChatHistory::MergeArchive(BMessage record) {
     auto key=Key(record.GetString("id",""));
     if(key.empty())return Put(record);
     const auto& existing=fRecords.at(key);
-    if(existing.GetInt64("time",0)==timestamp)return false;
+    const bool upgradeMarkable = record.GetBool("markable",false) && !existing.GetBool("markable",false);
+    if(existing.GetInt64("time",0)==timestamp && !upgradeMarkable)return false;
     // The archive's clock is authoritative for ordering. Preserve all local
     // content, aliases and reactions, including an optimistic pending change.
     BMessage merged(existing);merged.ReplaceInt64("time",timestamp);
+    if(upgradeMarkable) { merged.RemoveName("markable"); merged.AddBool("markable",true); }
     if(!Save(key,merged))return false;
     fRecords[key]=merged;return true;
 }

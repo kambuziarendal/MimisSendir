@@ -75,6 +75,7 @@ public:
 
 public:
     bool ParagraphVisible(int32 index);
+    bool ParagraphReadVisible(int32 index);
 
 private:
 			float				_TextLayoutWidth(float viewWidth) const;

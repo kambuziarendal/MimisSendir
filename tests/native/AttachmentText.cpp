@@ -1,5 +1,9 @@
 // Native Haiku test. Uses synthetic UI objects, no network/account data.
 #include <Application.h>
+#include <Window.h>
+#include <ScrollView.h>
+#include <ScrollBar.h>
+#include <LayoutBuilder.h>
 #include <Bitmap.h>
 #include <Message.h>
 #include <cstdio>
@@ -186,6 +190,27 @@ int main()
         TextDocumentRef doc(new TextDocument(),true);doc->Append(p);ClickProbe view;view.SetTextDocument(doc);view.SetInsets(0);view.SetSelectionEnabled(false);view.FrameResized(width,500);
         view.clicked=0;view.MouseDown(BPoint((reactions.left+reactions.right)/2,(reactions.top+reactions.bottom)/2));Check(view.clicked=='rMnu',"aggregate footer opens original message reaction menu");
         view.clicked=0;view.MouseDown(BPoint((clock.left+clock.right)/2,(clock.top+clock.bottom)/2));Check(view.clicked==0,"clock is not a reaction target");
+    }
+    {
+        auto* window = new BWindow(BRect(40,40,500,400), "Read visibility", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS);
+        auto* view = new TextDocumentView("read-visibility");
+        TextDocumentRef doc(new TextDocument(),true);
+        Paragraph p; p.Append(TextSpan("Visible incoming message",style)); doc->Append(p);
+        for(int i=0;i<40;++i) doc->Append(p);
+        view->SetTextDocument(doc);view->SetInsets(12);
+        auto* scroller = new BScrollView("read-scroll",view,0,false,true);
+        BLayoutBuilder::Group<>(window,B_VERTICAL,0).Add(scroller);
+        window->Show();snooze(150000);window->Lock();
+        view->Relayout();
+        Check(view->ParagraphReadVisible(0),"fully visible first message can be read");
+        Check(!view->ParagraphReadVisible(40),"offscreen message is not read-visible");
+        auto* bar=scroller->ScrollBar(B_VERTICAL);
+        bar->SetValue(15);
+        Check(!view->ParagraphReadVisible(0),"partly clipped message is not read-visible");
+        float low,high;bar->GetRange(&low,&high);bar->SetValue(high);
+        Check(view->ParagraphReadVisible(40),"bottom jump reveals newest message for reading");
+        view->Hide();Check(!view->ParagraphReadVisible(40),"hidden timeline cannot mark read");
+        window->Quit();
     }
 	printf("%d native attachment text checks passed\n", checks);
 }

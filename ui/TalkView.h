@@ -10,6 +10,7 @@
 
 #include "network/UploadManager.h"
 #include "support/MessageDelivery.h"
+#include "support/ReadTracker.h"
 #include "support/ChatHistory.h"
 #include <StatusBar.h>
 #include <SplitView.h>
@@ -95,7 +96,7 @@ public:
 	 */
 	bool                 AddToTalk(std::string username, std::list<TextSpan>& spans,
 							TalkView::user_type type, bool parseLinks = false, int64 timestamp = 0,
-		bool archive = false, const std::string& messageId = "", const std::string& attachment = "", const std::string& senderJid = "", const std::string& wireId = "");
+		bool archive = false, const std::string& messageId = "", const std::string& attachment = "", const std::string& senderJid = "", const std::string& wireId = "", bool markable = false);
 
 	void                 ShowError(const gloox::StanzaError& error, bool deliveryFailure = false);
 
@@ -164,6 +165,11 @@ private:
 	TextDocumentRef		fTimelineDocument;
     std::string fLastMessageDay;
     BMessageRunner* fDatePoll=nullptr;
+    BMessageRunner* fReadPoll=nullptr;
+    BButton* fJumpToLatest=nullptr;
+    Chat::ReadTracker fReadTracker;
+    uint64 fReadGeneration=0;
+    void UpdateReading();
 
 	BScrollView*		fMessageInputScroller;
 	BTextView*			fMessageInput;

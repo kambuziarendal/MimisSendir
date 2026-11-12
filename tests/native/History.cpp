@@ -41,6 +41,10 @@ int main(){
     clockFix.ReplaceString("body","Do not replace local content");
     Check(caughtUp.MergeArchive(clockFix),"archive time corrects a known stable alias");
     Check(!caughtUp.MergeArchive(clockFix),"matching archive timestamp is a no-op");
+    clockFix.AddBool("markable",true);
+    Check(caughtUp.MergeArchive(clockFix),"archive upgrades read metadata without a timestamp change");
+    Check(caughtUp.Record(clockFix.GetString("id","")).GetBool("markable",false),"read opt-in survives archive merge");
+    Check(!caughtUp.MergeArchive(clockFix),"repeated read metadata is a no-op");
     auto corrected=caughtUp.Load();
     Check(corrected[0].GetInt64("time",0)==122500000 && std::string(corrected[0].GetString("body",""))==m.GetString("body",""),"authoritative ordering preserves message content");
     Check(caughtUp.Reactions("one").Counts().size()==1,"clock reconciliation preserves reactions");

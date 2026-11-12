@@ -11,6 +11,7 @@
 #include <malloc.h>
 #include <sys/stat.h>
 #include "ui/ComposerButton.h"
+#include "ui/JumpToLatestButton.h"
 #include "ui/ConversationAvatar.h"
 #include "ui/AvatarCache.h"
 #include "ui/ModalAlertFactory.h"
@@ -165,7 +166,16 @@ TalkView::TalkView(const gloox::JID *user, std::string group_room,
 	fAttach = new ComposerButton("Attach file", "Attach file", new BMessage('uSel'),ComposerButton::Attachment);
 	fAttach->SetToolTip(B_TRANSLATE("Attach file…"));
 	gv->AddChild(fAttach);
-	gv->AddChild(new ComposerButton("send-message", B_TRANSLATE("Send"), new BMessage(JAB_CHAT_SENT),ComposerButton::Send));
+    // Reserve a small slot so showing the jump control never moves the draft,
+    // send button or timeline. It is present only while older content is shown.
+    auto* jumpSlot = new BGroupView("latest-message-slot", B_VERTICAL, 0);
+    jumpSlot->SetExplicitMinSize(BSize(36, 36));
+    jumpSlot->SetExplicitMaxSize(BSize(36, 36));
+    fJumpToLatest = new JumpToLatestButton();
+    jumpSlot->AddChild(fJumpToLatest);
+    fJumpToLatest->Hide();
+    gv->AddChild(jumpSlot);
+    gv->AddChild(new ComposerButton("send-message", B_TRANSLATE("Send"), new BMessage(JAB_CHAT_SENT),ComposerButton::Send));
 	gv->AddChild(fRaiseHand);
 	fRaiseHand->Hide();
 
@@ -313,6 +323,7 @@ TalkView::~TalkView() {
 	delete fAttachmentPanel;
 	delete fUploadPoll;
     delete fDatePoll;
+    delete fReadPoll;
 
 	if (IsGroupChat() && JabberSpeak::Instance()->IsConnected())
 		JabberSpeak::Instance()->SendGroupUnvitation(_group_room, _group_username);
@@ -354,6 +365,8 @@ void TalkView::AttachedToWindow()
 
 	fTimeline->SetTarget(this);
     SyncHistory();
+    fJumpToLatest->SetTarget(this);
+    if (!fReadPoll) { BMessage tick('rVis'); fReadPoll = new BMessageRunner(BMessenger(this), tick, 250000); }
 	_people->SetTarget(this);
 	fRaiseHand->SetTarget(this);
 	fAttach->SetTarget(this);
@@ -458,6 +471,7 @@ struct Iterator
 
 
 void TalkView::MessageReceived(BMessage *msg) {
+    if(msg->what=='rVis'){UpdateReading();return;}
     if(msg->what=='dPol'){fTimeline->Invalidate();if(!IsHidden())SyncHistory();return;}
     if(msg->what=='rSet' && !fMessageInput->IsEditable()) { SetStatus("Cannot react until this conversation is ready.");return; }
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
@@ -506,7 +520,7 @@ void TalkView::MessageReceived(BMessage *msg) {
 	switch(msg->what) {
         case 'mEnd': {
             fTimeline->Relayout();float low,high;auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);
-            bar->GetRange(&low,&high);bar->SetValue(high);break;
+            bar->GetRange(&low,&high);bar->SetValue(high);UpdateReading();break;
         }
         case 'mCtx': {
             auto* menu=new BPopUpMenu("Message");
@@ -1115,7 +1129,7 @@ void TalkView::MessageReceived(BMessage *msg) {
             runs.emplace_back(msg->GetString("content", ""), CharacterStyle());
             if (AddToTalk(sender, runs, outgoing ? LOCAL : MAIN_RECIPIENT, true,
                 msg->GetInt64("time", 0), msg->GetBool("archive", false),
-                msg->GetString("id", ""), msg->GetString("attachment", "")))
+                msg->GetString("id", ""), msg->GetString("attachment", ""), "", "", msg->GetBool("markable", false)))
                 AddAttachment(msg->GetString("attachment", ""));
 			break;
 		}
@@ -1291,7 +1305,7 @@ ConsistentColor(const std::string& username)
 
 
 bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
-	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& attachment, const std::string& senderJid, const std::string& wireId)
+	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& attachment, const std::string& senderJid, const std::string& wireId, bool markable)
 {
 	if (runs.empty()) return false;
     std::string rawBody;for(const auto& run:runs)rawBody+=run.Text().String();
@@ -1333,6 +1347,7 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
         record.AddString("body",body.c_str());record.AddString("name",username.c_str());
         record.AddString("sender",sender.c_str());record.AddString("attachment",attachment.c_str());record.AddInt64("time",timestamp);
         if(!wireId.empty())record.AddString("wire-id",wireId.c_str());
+        record.AddBool("markable",markable);
         record.AddBool("outgoing",type==LOCAL);fHistory->Put(record);
         if(!fHistory->Error().empty())SetStatus(fHistory->Error());
     }
@@ -1948,7 +1963,7 @@ void TalkView::RestoreHistory(bool reload) {
     for(const auto& m:records) {
         std::list<TextSpan> runs;runs.emplace_back(m.GetString("body",""),CharacterStyle());
         AddToTalk(m.GetString("name",""),runs,m.GetBool("outgoing",false)?LOCAL:MAIN_RECIPIENT,true,
-            m.GetInt64("time",0),true,m.GetString("id",""),m.GetString("attachment",""),m.GetString("sender",""));
+            m.GetInt64("time",0),true,m.GetString("id",""),m.GetString("attachment",""),m.GetString("sender",""),m.GetString("wire-id",""),m.GetBool("markable",false));
         AddAttachment(m.GetString("attachment",""));
         if(fReactions)fReactions->Alias(m.GetString("id",""),m.GetString("alias",""));
     }
@@ -1987,5 +2002,36 @@ void TalkView::RebuildHistory() {
         preview.AddString("id",last.GetString("id",""));preview.AddString("preview",last.GetString("body",""));
         preview.AddUInt64("generation",JabberSpeak::Instance()->ConnectionGeneration());
         BlabberMainWindow::Instance()->PostMessage(&preview);
+    }
+}
+
+void TalkView::UpdateReading()
+{
+    if (IsHidden() || !Window()) { fReadTracker.Observe({}, system_time()); return; }
+    auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float low = 0, high = 0;
+    if (bar) bar->GetRange(&low, &high);
+    const bool moreBelow = bar && bar->Value() < high - 1;
+    if (moreBelow && fJumpToLatest->IsHidden()) fJumpToLatest->Show();
+    if (!moreBelow && !fJumpToLatest->IsHidden()) fJumpToLatest->Hide();
+
+    auto* connection = JabberSpeak::Instance();
+    const auto generation = connection->ConnectionGeneration();
+    if (generation != fReadGeneration) { fReadTracker = {}; fReadGeneration = generation; }
+    std::vector<std::string> visible;
+    if (Window()->IsActive() && !Window()->IsMinimized() && !fLoadingArchive
+        && !fReplayingHistory && fHistory && connection->IsConnected()) {
+        for (int32 i = 0; i < fTimelineDocument->CountParagraphs(); ++i) {
+            const auto& style = fTimelineDocument->ParagraphAtIndex(i).Style();
+            const auto id = style.ReactionId();
+            if (style.MessageKind() != 1 || id.empty() || fReadTracker.SubmittedAlready(id)
+                || !fTimeline->ParagraphReadVisible(i)) continue;
+            auto record = fHistory->Record(id);
+            if (!record.GetBool("outgoing",true) && record.GetBool("markable",false)) visible.push_back(id);
+        }
+    }
+    for (const auto& id : fReadTracker.Observe(visible, system_time())) {
+        if (!connection->QueueDisplayed(IsGroupChat() ? _group_room : _session->target().bare(), id, IsGroupChat())) break;
+        fReadTracker.Submitted(id);
     }
 }

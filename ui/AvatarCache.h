@@ -18,6 +18,7 @@ std::string Account();
 std::shared_ptr<Image> Get(const std::string& account, const std::string& jid);
 void Receive(const std::string& account, const std::string& jid, const std::string& bytes);
 void Alias(const std::string& account, const std::string& occupant, const std::string& realJid);
+void RefreshAccount(const std::string& account);
 void Watch(BHandler* handler);
 void Unwatch(BHandler* handler);
 inline void Draw(BView* view,BRect frame,const std::shared_ptr<Image>& image,const std::string& name){

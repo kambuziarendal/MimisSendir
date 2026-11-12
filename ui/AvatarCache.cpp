@@ -36,12 +36,22 @@ public:
         std::lock_guard<std::mutex> lock(fMutex);auto key=Hash(account)+"/"+Hash(jid);
         auto found=fImages.find(key);if(found!=fImages.end())return found->second;
         if(fImages.size()>=512)return {};
-        auto image=std::make_shared<Image>();fImages[key]=image;
+        auto image=std::make_shared<Image>();fImages[key]=image;fIdentities[key]={account,jid};
         BMessage request('avLd');request.AddString("account",account.c_str());request.AddString("jid",jid.c_str());PostMessage(&request);return image;
     }
     void MessageReceived(BMessage* message)override{
         struct Pending { bool incoming;~Pending(){if(incoming)--sPending;} } pending{message->what=='avIn'};
         std::string account=message->GetString("account",""),jid=message->GetString("jid","");
+        if (message->what == 'avRf') {
+            std::vector<std::string> peers;
+            {
+                std::lock_guard<std::mutex> lock(fMutex);
+                for (const auto& [key, identity] : fIdentities)
+                    if (identity.first == account && !fAliasSources.count(key)) peers.push_back(identity.second);
+            }
+            for (const auto& peer : peers) JabberSpeak::Instance()->QueueAvatar(account, peer);
+            return;
+        }
         if(account.empty()||jid.empty())return;
         auto key=Hash(account)+"/"+Hash(jid);auto image=Get(account,jid);if(!image)return;
         if(message->what=='avAl'){
@@ -96,6 +106,7 @@ private:
         }
         SendNotices(kChanged);
     }
+    std::map<std::string,std::pair<std::string,std::string>> fIdentities;
     std::mutex fMutex;std::map<std::string,std::shared_ptr<Image>> fImages;std::map<std::string,std::set<std::string>> fAliases;std::map<std::string,std::string> fAliasSources;
 };
 Cache& Instance(){static auto* cache=new Cache;return *cache;}
@@ -110,6 +121,10 @@ void Receive(const std::string& account,const std::string& jid,const std::string
 void Alias(const std::string& account,const std::string& occupant,const std::string& real){
     if(account.empty()||occupant.empty()||real.empty())return;
     BMessage message('avAl');message.AddString("account",account.c_str());message.AddString("jid",occupant.c_str());message.AddString("real",gloox::JID(real).bare().c_str());Instance().PostMessage(&message);
+}
+void RefreshAccount(const std::string& account) {
+    if(account.empty())return;
+    BMessage message('avRf');message.AddString("account",account.c_str());Instance().PostMessage(&message);
 }
 void Watch(BHandler* handler){Instance().StartWatching(handler,kChanged);}
 void Unwatch(BHandler* handler){Instance().StopWatching(handler,kChanged);}

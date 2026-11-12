@@ -77,6 +77,7 @@ bool ArchiveManager::Handle(const gloox::Message& message){
         item.what='rInc';item.AddBool("archived",true);item.RemoveName("id");item.AddString("id",parsed.id().c_str());item.AddString("actor",sent?"self":r->group?from.full().c_str():from.bare().c_str());
         for(const auto& e:parsed.values())item.AddString("emoji",e.c_str());
     } else {
+        item.AddBool("markable", ArchiveChild(msg,"markable","urn:xmpp:chat-markers:0") != nullptr);
         item.what='hRec';auto* body=ArchiveChild(msg,"body","jabber:client");std::string text=body?body->cdata():"";
         if(text.size()>65536)return true;
         auto* oob=ArchiveChild(msg,"x","jabber:x:oob");auto* url=ArchiveChild(oob,"url","jabber:x:oob");auto attachment=url?url->cdata():text;

@@ -702,3 +702,16 @@ bool TextDocumentView::ParagraphVisible(int32 index)
     BRect viewport=Bounds();viewport.InsetBy(0,-32);
     return viewport.Intersects(bounds);
 }
+
+// Read receipts use strict geometry, not the media preload margin. A message
+// taller than the viewport is eligible only when its bottom has been reached.
+bool TextDocumentView::ParagraphReadVisible(int32 index)
+{
+    if (IsHidden()) return false;
+    BRect paragraph = fTextDocumentLayout.ParagraphBounds(index);
+    if (!paragraph.IsValid()) return false;
+    paragraph.OffsetBy(fInsetLeft, fInsetTop);
+    const BRect viewport = Bounds();
+    return paragraph.bottom >= viewport.top && paragraph.bottom <= viewport.bottom
+        && (paragraph.top >= viewport.top || paragraph.Height() > viewport.Height());
+}

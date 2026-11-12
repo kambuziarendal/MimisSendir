@@ -1,5 +1,6 @@
 #include "config/PrivateProfile.h"
 #include "network/DeliveryReceipt.h"
+#include "network/ChatMarker.h"
 #include "network/Reactions.h"
 #include "network/Reply.h"
 #include "network/Correction.h"
@@ -271,6 +272,8 @@ void JabberSpeak::_ConnectionThread()
 
 	// Prepare for handling carbons
 	fClient->registerStanzaExtension(new Chat::Receipt());
+    fClient->registerStanzaExtension(new Chat::Marker());
+    fClient->disco()->addFeature("urn:xmpp:chat-markers:0");
     fClient->registerStanzaExtension(new Chat::Reactions());
     fClient->registerStanzaExtension(new Chat::Correction());
     fClient->disco()->addFeature("urn:xmpp:reactions:0");
@@ -987,21 +990,47 @@ std::string JabberSpeak::QueueReaction(const std::string& recipient, const std::
     fTextQueue.push_back({request,recipient,emoji,"",group,target,id,"","",0,""});return request;
 }
 
+bool JabberSpeak::QueueDisplayed(const std::string& recipient, const std::string& id, bool group) {
+    std::lock_guard<std::mutex> lock(fTextLock);
+    if (!CanSendTo(recipient) || fConnectionState.StopRequested() || id.empty() || id.size() > 1024
+        || fDisplayedQueue.size() >= 64) return false;
+    fDisplayedQueue.push_back({recipient, id, group});
+    return true;
+}
+
 void JabberSpeak::QueueAvatar(const std::string& account,const std::string& jid) {
     std::lock_guard<std::mutex> lock(fTextLock);
-    if(fAvatarQueue.size()<512)fAvatarQueue.emplace_back(account,jid);
+    if (account.empty() || jid.empty() || jid.size() > 2048) return;
+    const auto request = std::make_pair(account,jid);
+    if(fAvatarQueue.size()<512 && std::find(fAvatarQueue.begin(),fAvatarQueue.end(),request)==fAvatarQueue.end()) fAvatarQueue.push_back(request);
 }
 
 void JabberSpeak::_SendQueuedText()
 {
     std::deque<TextRequest> queued;
+    std::deque<DisplayedRequest> displayed;
     std::deque<std::pair<std::string,std::string>> avatars;
     {
         std::lock_guard<std::mutex> lock(fTextLock);
         queued.swap(fTextQueue);
-        if(IsConnected())for(int n=0;n<4&&!fAvatarQueue.empty();++n){avatars.push_back(std::move(fAvatarQueue.front()));fAvatarQueue.pop_front();}
+        displayed.swap(fDisplayedQueue);
+        // Do not consume Signal avatar requests before the bridge is ready.
+        // Rotate deferred entries so they cannot block ordinary XMPP contacts.
+        for (size_t n=fAvatarQueue.size(); IsConnected() && n>0 && avatars.size()<4; --n) {
+            auto request=std::move(fAvatarQueue.front());fAvatarQueue.pop_front();
+            if(request.first!=fClient->jid().bare())continue;
+            if(CanSendTo(request.second))avatars.push_back(std::move(request));
+            else fAvatarQueue.push_back(std::move(request));
+        }
     }
     for(const auto& request:avatars)if(request.first==fClient->jid().bare())fVCardManager->fetchVCard(gloox::JID(request.second),this);
+    for (const auto& request : displayed) {
+        if (!CanSendTo(request.recipient) || fConnectionState.StopRequested()) continue;
+        gloox::Message message(request.group ? gloox::Message::Groupchat : gloox::Message::Chat,
+            gloox::JID(request.recipient));
+        message.addExtension(new Chat::Marker(request.id));
+        fClient->send(message);
+    }
     for (const auto& request : queued) {
         const bool connected = CanSendTo(request.recipient) && !fConnectionState.StopRequested();
         if (connected) {
@@ -1029,13 +1058,12 @@ void JabberSpeak::_SendQueuedText()
 void JabberSpeak::_FailQueuedText()
 {
     std::deque<TextRequest> queued;
-    std::deque<std::pair<std::string,std::string>> avatars;
     {
         std::lock_guard<std::mutex> lock(fTextLock);
         queued.swap(fTextQueue);
-        if(IsConnected())for(int n=0;n<4&&!fAvatarQueue.empty();++n){avatars.push_back(std::move(fAvatarQueue.front()));fAvatarQueue.pop_front();}
+        fDisplayedQueue.clear();
+        fAvatarQueue.clear();
     }
-    for(const auto& request:avatars)if(request.first==fClient->jid().bare())fVCardManager->fetchVCard(gloox::JID(request.second),this);
     for (const auto& request : queued) {
         BMessage notice(kMessageDeliveryError);
         notice.AddString("id", request.id.c_str());
@@ -1053,7 +1081,9 @@ bool JabberSpeak::CanSendTo(const std::string& recipient) const
 void JabberSpeak::BridgePresence(const gloox::JID& jid, gloox::Presence::PresenceType type)
 {
     if (jid.bare() != fBridgeDomain) return;
+    const bool wasReady = fBridgeReady;
     fBridgeReady = type == gloox::Presence::Chat;
+    if(fBridgeReady && !wasReady) Avatars::RefreshAccount(fClient->jid().bare());
     BMessage notice(kBridgeStatus);
     notice.AddBool("ready", fBridgeReady);
     notice.AddUInt64("generation", ConnectionGeneration());
