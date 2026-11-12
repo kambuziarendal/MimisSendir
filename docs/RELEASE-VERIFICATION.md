@@ -14,4 +14,4 @@ The bridge utilities passed 19 offline unit tests. The release-manifest helper p
 
 During preparation, a stale-timestamp incremental beta 4 build was detected by its unchanged executable hash and withheld. The changed source inputs were explicitly invalidated and rebuilt before acceptance. Beta 5 temporary build files were moved to the scratch volume after a low-space compilation failure. The failed outputs were not published.
 
-Each release carries HPKG, installer ZIP, matching source archive and SHA256SUMS. Anonymous GitHub downloads are checked against the local hashes. Security reports can be submitted through the repository's private vulnerability reporting. Spritz manifests are prepared, but no catalog submission or hosted bridge service is included.
+Each release carries HPKG, installer ZIP, matching source archive and SHA256SUMS. Anonymous GitHub downloads are checked against the local hashes. Security reports can be submitted through the repository's private vulnerability reporting. Beta 5 is now published in Spritz Depot; its public page and resolver are verified. Native Spritz installation is not yet tested. No hosted bridge service is included.
