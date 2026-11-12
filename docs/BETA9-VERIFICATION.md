@@ -10,7 +10,10 @@ Native Haiku R1 beta6 hrev59866+79 x86_64, isolated overlay and synthetic TLS/XM
 - Test VM initially lacked an audio device. Its AudioMixer crashed; the report was retained. Rebooting that isolated VM with an AC97 device resolved it, and actual playback was repeated. This was not a production change.
 - Installed upgrade from beta8-2 to beta9-1 retains the profile. Installed executable SHA-256 matches the native build: `34f24f1e006c90dbc35eed50b4bb492a5b91f1ed14331181a0f47bf9ceca018b`.
 - Package installation uses offline `pkgman install -R -y` in the restricted fixture. The initial refreshing command was stopped before activation; beta 8's installed hash was verified unchanged before retry.
+- Incoming OOB image captions and outgoing video cards with delivered checks were verified in the installed app.
 - Installed candidate: missing video gives a visible HTTP 404 error without launching a player. Retry starts a new download; Cancel stops it. Replacing the synthetic fixture and retrying successfully opens the exact MP4 in MediaPlayer.
 - Public neutral defaults, separate Renga identity and KeyStore settings are retained. Video codec support depends on Haiku media add-ons. Inline video, clips above 50 MiB, physical-device/live Signal interoperability and native HaikuDepot delivery are not claimed tested.
 
 Recovery: reinstall the retained beta 8 package without restoring stale conversation data. Discovery adds only account-scoped settings; no destructive history/schema migration is performed.
+
+Published tag `v0.1.0-beta.9`, source `9036117`. Anonymous GitHub HPKG/source downloads match their local SHA-256. Spritz app page/search and x86_64 resolver were verified for beta9-1, HPKG SHA-256 `73d0fa90eeefe3e98ad4dc7f687fe7baa98172a6f955fff8729b75ac3d012fda`. The task-owned VM, XMPP/HTTPS fixture and reverse tunnel were stopped.
