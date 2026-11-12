@@ -3,6 +3,7 @@
 #include "AttachmentSave.h"
 #include "ReactionSpans.h"
 #include "MediaPreview.h"
+#include "VideoPlayback.h"
 #include <PopUpMenu.h>
 #include <MenuItem.h>
 #include "network/AttachmentMetadata.h"
@@ -30,7 +31,7 @@
 #include <unistd.h>
 
 namespace {
-constexpr uint32 kPoll = 'aPls', kGet = 'aGet', kSave = 'aSav', kCancel = 'aCan', kSaveRef = 'aRef', kMenu = 'aMnu', kPlay = 'aPly', kVideo = 'aVid';
+constexpr uint32 kPoll = 'aPls', kGet = 'aGet', kSave = 'aSav', kCancel = 'aCan', kSaveRef = 'aRef', kMenu = 'aMnu', kPlay = 'aPly', kVideo = 'aVid', kExternal = 'aExt', kSeek = 'aSek', kMute = 'aMut', kStop = 'aStp';
 std::atomic<unsigned> sWorkers{0};
 std::atomic<unsigned> sCachedFiles{0};
 std::atomic<uint64> sNextToken{1};
@@ -79,6 +80,9 @@ struct AttachmentController::Record {
 	bool paused = false;
     bool automatic = false;
     BSize previewSize;
+    std::unique_ptr<VideoPlayback> video;
+    VideoPlayback::Snapshot videoState;
+    uint64 videoGeneration = 0;
 };
 
 AttachmentController::AttachmentController(BMessenger target, TextDocumentView& timeline,
@@ -181,12 +185,32 @@ void AttachmentController::Render(Record& record)
     content.SetCursor(BCursor(B_CURSOR_ID_FOLLOW_LINK));
     paragraph.Append(content);
     if (Upload::IsVideoFilename(record.job->url)) {
-        TextSpan play(record.job->running ? "\nCancel download" : "\n▶ Play video", normal);
-        auto* action = new BMessage(record.job->running ? kCancel : kVideo);
-        action->AddUInt64("attachment-token", record.job->token);
-        play.SetClickMessage(action);
-        play.SetCursor(BCursor(B_CURSOR_ID_FOLLOW_LINK));
-        paragraph.Append(play);
+        auto control = [&](const std::string& label, uint32 code, int64 seek = 0) {
+            TextSpan span(label.c_str(), normal);
+            auto* action = new BMessage(code);
+            action->AddUInt64("attachment-token", record.job->token);
+            action->AddInt64("seek", seek);
+            span.SetClickMessage(action);
+            span.SetCursor(BCursor(B_CURSOR_ID_FOLLOW_LINK));
+            paragraph.Append(span);
+        };
+        if (record.video) {
+            const auto& state = record.videoState;
+            auto time = [](bigtime_t value) {
+                const auto seconds = std::max<int64>(0, value / 1000000);
+                char text[40]; snprintf(text, sizeof(text), "%lld:%02lld",
+                    (long long)(seconds / 60), (long long)(seconds % 60));
+                return std::string(text);
+            };
+            paragraph.Append(TextSpan(("\n" + time(state.position) + " / " + time(state.duration)).c_str(), normal));
+            control(state.ended ? "\n▶ Replay" : state.paused ? "\n▶ Play" : "\nⅡ Pause", kVideo);
+            control("   −10 s", kSeek, -10000000);
+            control("   +10 s", kSeek, 10000000);
+            if (state.audio) control(state.muted ? "   Unmute" : "   Mute", kMute);
+            control("   Close", kStop);
+            if (!state.error.empty()) paragraph.Append(TextSpan(("\n" + state.error).c_str(), normal));
+        } else control(record.job->running ? "\nCancel download" : "\n▶ Play video",
+            record.job->running ? kCancel : kVideo);
     }
     CopyReactions(fDocument->ParagraphAtIndex(record.paragraph),paragraph);
 	fDocument->SetParagraph(record.paragraph, paragraph);
@@ -266,6 +290,26 @@ void AttachmentController::PlayVideo(Record& record)
 {
     auto job = record.job;
     if (!job->ready || job->running || !Upload::IsVideoFilename(job->url)) return;
+    job->error.clear();
+    if (record.video && !record.videoState.stopped) {
+        if (record.videoState.ended) {
+            record.video->Seek(0);
+            record.video->Pause(false);
+        } else record.video->Pause(!record.videoState.paused);
+        return;
+    }
+    record.video.reset();
+    record.displayed.reset();
+    record.videoGeneration = 0;
+    record.videoState = {};
+    record.status = "Opening video…";
+    record.video = std::make_unique<VideoPlayback>(job->temporaryPath, job);
+}
+
+void AttachmentController::OpenExternalVideo(Record& record)
+{
+    auto job = record.job;
+    if (!job->ready || job->running || !Upload::IsVideoFilename(job->url)) return;
     entry_ref ref;
     if (get_ref_for_path(job->temporaryPath.c_str(), &ref) != B_OK) {
         job->error = "Downloaded video is unavailable. Download it again.";
@@ -327,7 +371,7 @@ void AttachmentController::Poll()
     for(auto& record:fRecords) {
         auto job=record->job;
         const bool pinned=fSavePanel && fSavePanel->IsShowing() && fSavingToken==job->token;
-        if(!job->running && !job->playing && job->cacheLease && !record->wantsSave && !record->wantsPlay && !pinned
+        if(!job->running && !job->playing && !record->video && job.use_count() == 2 && job->cacheLease && !record->wantsSave && !record->wantsPlay && !pinned
             && !fTimeline.ParagraphVisible(record->paragraph)
             && (fTimeline.IsHidden() || sCachedFiles.load()>=8)) {
             record->displayed.reset();job->ClearCache();job->ready=false;
@@ -357,6 +401,24 @@ void AttachmentController::Poll()
 			if (record->wantsSave) { record->wantsSave = false; SavePanel(*record); }
             if (record->wantsPlay) { record->wantsPlay = false; PlayVideo(*record); }
 		}
+        if (record->video) {
+            if (fTimeline.IsHidden() || record->paragraph < 0) record->video->Pause(true);
+            const auto old = record->videoState;
+            const auto generation = record->videoGeneration;
+            const bool hadPreview = bool(record->displayed);
+            record->videoState = record->video->Read(record->displayed, record->videoGeneration);
+            const auto& current = record->videoState;
+            if (current.stopped && current.error.empty()) {
+                record->video.reset(); record->displayed.reset(); Render(*record);
+            } else {
+                if (hadPreview != bool(record->displayed) || old.paused != current.paused
+                    || old.ended != current.ended || old.muted != current.muted
+                    || old.ready != current.ready || old.error != current.error
+                    || old.position / 1000000 != current.position / 1000000) Render(*record);
+                else if (generation != record->videoGeneration) fTimeline.Invalidate();
+                continue;
+            }
+        }
         bool redraw = status != record->status;
         if (!job->running && job->ready && !job->preview.frames.empty() && !record->displayed) {
             record->displayed = std::make_shared<BBitmap>(job->preview.frames[0].get());
@@ -387,7 +449,7 @@ void AttachmentController::Poll()
 bool AttachmentController::HandleMessage(const BMessage& message)
 {
 	if (message.what == kPoll) { Poll(); return true; }
-	if (message.what != kGet && message.what != kSave && message.what != kCancel && message.what != kSaveRef && message.what != kMenu && message.what != kPlay && message.what != kVideo) return false;
+	if (message.what != kGet && message.what != kSave && message.what != kCancel && message.what != kSaveRef && message.what != kMenu && message.what != kPlay && message.what != kVideo && message.what != kExternal && message.what != kSeek && message.what != kMute && message.what != kStop) return false;
 	uint64 token = message.GetUInt64("attachment-token", 0);
 	for (auto& record : fRecords) {
 		auto job = record->job;
@@ -401,7 +463,10 @@ bool AttachmentController::HandleMessage(const BMessage& message)
             };
             if(job->running) add("Cancel",kCancel);
             else {
-                if (Upload::IsVideoFilename(job->url)) add("Play video", kVideo);
+                if (Upload::IsVideoFilename(job->url)) {
+                    add("Play / pause video", kVideo);
+                    if (job->ready) add("Open in MediaPlayer", kExternal);
+                }
                 if(!job->ready) add("Download / retry",kGet);
                 add(Upload::IsPreviewFilename(job->url)?"Save image…":"Save file…",kSave);
                 if(job->preview.frames.size()>1)add(record->paused?"Play animation":"Pause animation",kPlay);
@@ -411,6 +476,14 @@ bool AttachmentController::HandleMessage(const BMessage& message)
             fTimeline.ConvertToScreen(&point);
             menu->SetAsyncAutoDestruct(true);menu->Go(point,true,true,true);
             return true;
+        } else if (message.what == kExternal) {
+            record->video.reset(); record->displayed.reset(); OpenExternalVideo(*record);
+        } else if (message.what == kSeek && record->video) {
+            record->video->Seek(record->videoState.position + message.GetInt64("seek", 0));
+        } else if (message.what == kMute && record->video) {
+            record->video->Mute(!record->videoState.muted);
+        } else if (message.what == kStop) {
+            record->video.reset(); record->displayed.reset(); record->status.clear();
         } else if (message.what == kVideo) {
             if (job->running || !Upload::IsVideoFilename(job->url)) return true;
             if (job->ready) PlayVideo(*record);

@@ -22,7 +22,7 @@ AboutWindow *AboutWindow::Instance() {
 
 AboutWindow::AboutWindow()
 	: BAboutWindow(B_TRANSLATE_SYSTEM_NAME("MímisSendir"), "application/x-vnd.Kambuzi-MimisSendir") {
-	SetVersion("0.1.0-beta.9");
+	SetVersion("0.1.0-beta.10");
 	// draw credits
 	PopulateCredits();
 }

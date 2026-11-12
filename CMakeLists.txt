@@ -76,6 +76,7 @@ add_executable(Renga
 	network/UploadManager.cpp
 	network/AttachmentMetadata.cpp
 	ui/AttachmentController.cpp
+    ui/VideoPlayback.cpp
     ui/ActionIcon.cpp
     ui/ColorEmoji.cpp
 	ui/ReactionController.cpp
@@ -151,7 +152,7 @@ endif()
 
 target_link_libraries(Renga
 	# asan ubsan
-	be columnlistview crypto css game gloox iconv localestub shared tracker translation wapcaplet CURL::libcurl
+	be media columnlistview crypto css game gloox iconv localestub shared tracker translation wapcaplet CURL::libcurl
 )
 
 add_custom_command(OUTPUT ${CMAKE_BINARY_DIR}/Resource.rsrc
@@ -225,6 +226,9 @@ endif()
 # Synthetic text/inline-attachment regression checks. Requires real Haiku/app_server.
 option(RENGA_BUILD_NATIVE_TESTS "Build native attachment regression tests" OFF)
 if(RENGA_BUILD_NATIVE_TESTS)
+    add_executable(MimisSendirVideoTests tests/native/VideoPlayback.cpp ui/VideoPlayback.cpp)
+    target_compile_features(MimisSendirVideoTests PRIVATE cxx_std_20)
+    target_link_libraries(MimisSendirVideoTests PRIVATE be media)
     add_executable(RengaAppIconTests tests/native/AppIcon.cpp)
     target_link_libraries(RengaAppIconTests be)
     add_executable(RengaEdgeScrollTests tests/native/EdgeScroll.cpp)
