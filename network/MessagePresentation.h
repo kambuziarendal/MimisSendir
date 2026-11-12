@@ -2,10 +2,11 @@
 #pragma once
 #include "AttachmentMetadata.h"
 #include "Reactions.h"
+#include "Correction.h"
 #include <gloox/error.h>
 
 namespace Chat {
-enum class MessageKind { Ignore, Content, DeliveryError, Reaction };
+enum class MessageKind { Ignore, Content, DeliveryError, Reaction, Correction };
 
 inline MessageKind Classify(const gloox::Message& message)
 {
@@ -16,6 +17,7 @@ inline MessageKind Classify(const gloox::Message& message)
     if (message.subtype() != gloox::Message::Chat
         && message.subtype() != gloox::Message::Normal)
         return MessageKind::Ignore;
+    if (message.findExtension<Correction>(Correction::kExtension)) return MessageKind::Correction;
     if (message.findExtension<Reactions>(Reactions::kExtension)) return MessageKind::Reaction;
     // Receipts, typing states and other bodyless control stanzas are not chat.
     return Upload::AttachmentBody(message).empty()

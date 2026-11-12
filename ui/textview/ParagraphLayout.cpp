@@ -251,7 +251,7 @@ ParagraphLayout::Height()
 	}
 
 	if(fParagraphStyle.DateDivider()>=0)return 24;
-	return height + (fParagraphStyle.ReactionId().empty() && fParagraphStyle.MessageTime().empty() ? 0 : 26);
+	return height + (fParagraphStyle.ReactionId().empty() && fParagraphStyle.MessageTime().empty() ? 0 : 26) + (FooterWraps()?26:0);
 }
 
 
@@ -301,24 +301,26 @@ ParagraphLayout::Draw(BView* view, const BPoint& offset)
 	}
 
     if(!fParagraphStyle.MessageTime().empty()) {
-        BFont font(be_plain_font);font.SetSize(10);view->SetFont(&font);
-        view->SetHighUIColor(B_DOCUMENT_TEXT_COLOR);
-        float right=fParagraphStyle.OwnReaction().empty()?MessageLeft()+MessageWidth()-8:ReactionButton().left-7;
-        view->DrawString(fParagraphStyle.MessageTime().c_str(),BPoint(offset.x+right-font.StringWidth(fParagraphStyle.MessageTime().c_str()),offset.y+Height()-8));
+        BFont font(be_plain_font);font.SetSize(10);view->SetFont(&font);view->SetHighUIColor(B_DOCUMENT_TEXT_COLOR);
+        BString label(fParagraphStyle.MessageTime().c_str());font.TruncateString(&label,B_TRUNCATE_MIDDLE,TimeWidth());
+        const auto bounds=TimeBounds();view->DrawString(label.String(),BPoint(offset.x+bounds.right-font.StringWidth(label.String()),offset.y+Height()-8));
     }
-    if(!fParagraphStyle.OwnReaction().empty()) {
-        BRect button=ReactionButton();button.OffsetBy(offset);
-        if(auto bitmap=fParagraphStyle.OwnReactionBitmap()) {
-            BRect target=button;target.InsetBy(2,2);
-            view->SetDrawingMode(B_OP_ALPHA);view->DrawBitmap(bitmap.get(),bitmap->Bounds(),target);view->SetDrawingMode(B_OP_COPY);
-        } else if(!fParagraphStyle.OwnReaction().empty()) {
-            BFont font(be_plain_font);font.SetFamilyAndStyle("Noto Emoji",nullptr);font.SetSize(19);
-            view->SetFont(&font);view->SetHighUIColor(B_DOCUMENT_TEXT_COLOR);font_height metrics;font.GetHeight(&metrics);
-            float x=button.left+(button.Width()-font.StringWidth(fParagraphStyle.OwnReaction().c_str()))/2;
-            float y=button.top+(button.Height()-metrics.ascent-metrics.descent)/2+metrics.ascent;
-            view->DrawString(fParagraphStyle.OwnReaction().c_str(),BPoint(x,y));
-
+    auto badges=VisibleReactions();auto button=ReactionButton();button.OffsetBy(offset);
+    float badgeX=button.left;
+    for(const auto& badge:badges) {
+        BFont font(be_plain_font);font.SetSize(10);view->SetFont(&font);view->SetHighUIColor(B_DOCUMENT_TEXT_COLOR);
+        if(badge.count==0) {
+            view->DrawString(badge.emoji.c_str(),BPoint(badgeX+3,button.bottom-7));
+            badgeX+=font.StringWidth(badge.emoji.c_str())+8;continue;
         }
+        if(badge.bitmap) {
+            view->SetDrawingMode(B_OP_ALPHA);view->DrawBitmap(badge.bitmap.get(),badge.bitmap->Bounds(),BRect(badgeX+2,button.top+2,badgeX+22,button.top+22));view->SetDrawingMode(B_OP_COPY);
+        } else {
+            BFont emojiFont(be_plain_font);emojiFont.SetFamilyAndStyle("Noto Emoji",nullptr);emojiFont.SetSize(18);view->SetFont(&emojiFont);
+            view->DrawString(badge.emoji.c_str(),BPoint(badgeX+2,button.bottom-5));view->SetFont(&font);
+        }
+        badgeX+=26;
+        if(badge.count>1){const auto count=std::to_string(badge.count);view->DrawString(count.c_str(),BPoint(badgeX,button.bottom-7));badgeX+=font.StringWidth(count.c_str())+5;}
     }
 
 	const Bullet& bullet = fParagraphStyle.Bullet();
@@ -1101,10 +1103,43 @@ ParagraphLayout::_AppendTextSpans(const Paragraph& paragraph)
 		fTextSpans.push_back(paragraph.TextSpanAtIndex(i));
 }
 
+namespace {
+float BadgeWidth(const ParagraphStyle::ReactionBadge& badge) {
+    BFont font(be_plain_font);font.SetSize(10);
+    if(badge.count==0)return font.StringWidth(badge.emoji.c_str())+8;
+    return 26+(badge.count>1?font.StringWidth(std::to_string(badge.count).c_str())+5:0);
+}
+}
+std::vector<ParagraphStyle::ReactionBadge> ParagraphLayout::VisibleReactions() const {
+    if(fParagraphStyle.ReactionId().empty())return {};
+    auto all=fParagraphStyle.ReactionBadges();
+    if(all.empty() && !fParagraphStyle.OwnReaction().empty())all.push_back({fParagraphStyle.OwnReaction(),1,fParagraphStyle.OwnReactionBitmap()});
+    std::vector<ParagraphStyle::ReactionBadge> visible;float width=0,available=std::max(24.f,MessageWidth()-16);
+    for(size_t i=0;i<all.size() && i<3;++i) {
+        const float overflow=i+1<all.size()?BadgeWidth({"+"+std::to_string(all.size()-i-1),0,nullptr}):0;
+        if(width+BadgeWidth(all[i])+overflow>available)break;
+        visible.push_back(all[i]);width+=BadgeWidth(all[i]);
+    }
+    if(visible.size()<all.size())visible.push_back({"+"+std::to_string(all.size()-visible.size()),0,nullptr});
+    return visible;
+}
+float ParagraphLayout::ReactionWidth() const {
+    float width=0;for(const auto& badge:VisibleReactions())width+=BadgeWidth(badge);return width;
+}
+float ParagraphLayout::TimeWidth() const {
+    BFont font(be_plain_font);font.SetSize(10);return std::min(font.StringWidth(fParagraphStyle.MessageTime().c_str()),std::max(24.f,MessageWidth()-16));
+}
+bool ParagraphLayout::FooterWraps() const {
+    return ReactionWidth()>0 && TimeWidth()>0 && ReactionWidth()+TimeWidth()+7>MessageWidth()-16;
+}
+BRect ParagraphLayout::TimeBounds() {
+    if(fParagraphStyle.MessageTime().empty())return BRect();
+    const float right=MessageLeft()+MessageWidth()-8;return BRect(right-TimeWidth(),Height()-24,right,Height());
+}
 BRect ParagraphLayout::ReactionButton() {
-    if(fParagraphStyle.ReactionId().empty() || fParagraphStyle.OwnReaction().empty())return BRect();
-    float right=MessageLeft()+MessageWidth()-6;
-    return BRect(right-24,Height()-24,right,Height());
+    const float width=ReactionWidth();if(width<=0)return BRect();
+    const bool wrap=FooterWraps();const float right=MessageLeft()+MessageWidth()-8-(wrap || TimeWidth()==0?0:TimeWidth()+7);
+    const float bottom=Height()-(wrap?26:0);return BRect(right-width,bottom-24,right,bottom);
 }
 
 float ParagraphLayout::_InlineScale(const CharacterStyle& style) const {

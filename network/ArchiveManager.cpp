@@ -66,9 +66,13 @@ bool ArchiveManager::Handle(const gloox::Message& message){
     BMessage item;auto id=msg->findAttribute("id");
     if(r->group){auto* sid=ArchiveChild(msg,"stanza-id","urn:xmpp:sid:0");if(sid && sid->findAttribute("by")==r->peer)id=sid->findAttribute("id");}
     if(id.empty())id="archive-"+result->findAttribute("id");
+    item.AddString("wire-id",msg->findAttribute("id").c_str());
     item.AddString("id",id.c_str());item.AddInt64("time",Conversations::ArchiveTime(delay->findAttribute("stamp")));
     item.AddString("sender",from.full().c_str());item.AddBool("outgoing",sent);item.AddString("name",r->group?from.resource().c_str():sent?"You":"Contact");
-    if(auto* reaction=ArchiveChild(msg,"reactions","urn:xmpp:reactions:0")){
+    if(auto* correction=ArchiveChild(msg,"replace","urn:xmpp:message-correct:0")) {
+        auto* body=ArchiveChild(msg,"body","jabber:client");if(!body || body->cdata().empty() || body->cdata().size()>65536)return true;
+        item.what='mCor';item.ReplaceString("id",msg->findAttribute("id").c_str());item.AddString("replace",correction->findAttribute("id").c_str());item.AddString("body",body->cdata().c_str());
+    } else if(auto* reaction=ArchiveChild(msg,"reactions","urn:xmpp:reactions:0")){
         Reactions parsed(reaction);if(parsed.id().empty())return true;
         item.what='rInc';item.AddBool("archived",true);item.RemoveName("id");item.AddString("id",parsed.id().c_str());item.AddString("actor",sent?"self":r->group?from.full().c_str():from.bare().c_str());
         for(const auto& e:parsed.values())item.AddString("emoji",e.c_str());

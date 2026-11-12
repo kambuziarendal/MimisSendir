@@ -12,17 +12,27 @@
 #include <memory>
 #include <stdexcept>
 struct WireProbe : gloox::MessageSessionHandler, gloox::MessageHandler {
-    int contents=0,errors=0,reactions=0;
+    int contents=0,errors=0,reactions=0,corrections=0;
     void handleMessageSession(gloox::MessageSession* session) override { session->registerMessageHandler(this); }
     void handleMessage(const gloox::Message& m,gloox::MessageSession*) override {
         auto kind=Chat::Classify(m);
         if(kind==Chat::MessageKind::Content)++contents;
         if(kind==Chat::MessageKind::DeliveryError)++errors;
         if(kind==Chat::MessageKind::Reaction)++reactions;
+        if(kind==Chat::MessageKind::Correction)++corrections;
     }
 };
 int main() {
     int checks=0;auto check=[&](bool ok,const char* label){if(!ok)throw std::runtime_error(label);++checks;};
+    gloox::Message correction(gloox::Message::Chat,gloox::JID("bob@fixture.test"),"Corrected æ 🌞");
+    correction.setID("edit-2");correction.addExtension(new Chat::Correction("original<&"));
+    std::unique_ptr<gloox::Tag> correctedWire(correction.tag());
+    auto* replace=correctedWire->findChild("replace");
+    check(replace && replace->xmlns()=="urn:xmpp:message-correct:0" && replace->findAttribute("id")=="original<&","correction targets exact original ID");
+    check(correctedWire->findChild("body")->cdata()=="Corrected æ 🌞" && correctedWire->findAttribute("id")=="edit-2","correction body and new stanza ID survive serialization");
+    check(Chat::Classify(correction)==Chat::MessageKind::Correction,"correction never appended as ordinary content");
+    gloox::Message deniedEdit(gloox::Message::Error,gloox::JID("bob@fixture.test"),"Corrected æ 🌞");deniedEdit.addExtension(new Chat::Correction("original<&"));
+    check(Chat::Classify(deniedEdit)==Chat::MessageKind::DeliveryError,"echoed correction error is not content or edit");
     const auto prefix=Chat::ReplyPrefix("Original 🌞\nwith link https://example.test/?a=1&b=2");
     gloox::Message reply(gloox::Message::Chat,gloox::JID("bob@fixture.test"),prefix+"My reply");
     reply.addExtension(new Chat::Reply("original<&", "bob@fixture.test/phone"));
@@ -83,6 +93,7 @@ int main() {
     gloox::Client client(gloox::JID("alice@fixture.test"),"synthetic-no-network");
     client.registerMessageSessionHandler(&wire);
     client.registerStanzaExtension(new Chat::Reactions());
+    client.registerStanzaExtension(new Chat::Correction());
     gloox::Tag incoming("message");incoming.addAttribute("type","chat");incoming.addAttribute("from","bob@fixture.test/device");new gloox::Tag(&incoming,"body","hello");
     client.handleTag(&incoming);check(wire.contents==1,"real gloox creates Chat-only session");
     gloox::Tag rejected("message");rejected.addAttribute("type","error");rejected.addAttribute("from","bob@fixture.test/device");rejected.addAttribute("id","reaction-request");
@@ -92,5 +103,11 @@ int main() {
     client.handleTag(&incoming);check(wire.contents==2,"fallback does not duplicate normal session messages");
     gloox::Tag reactionMessage("message");reactionMessage.addAttribute("type","chat");reactionMessage.addAttribute("from","bob@fixture.test/another-device");reactionMessage.addChild(send.tag());
     client.handleTag(&reactionMessage);check(wire.reactions==1,"wire parser routes reaction once across resources");
+    gloox::Tag editMessage("message");editMessage.addAttribute("type","chat");editMessage.addAttribute("from","bob@fixture.test/device");editMessage.addAttribute("id","edit-wire");
+    new gloox::Tag(&editMessage,"body","Corrected 🌞");editMessage.addChild(Chat::Correction("original-wire").tag());
+    client.handleTag(&editMessage);check(wire.corrections==1 && wire.contents==2,"real parser delivers correction once without new bubble");
+    gloox::Tag foreignEdit("message");foreignEdit.addAttribute("type","chat");foreignEdit.addAttribute("from","bob@fixture.test/device");new gloox::Tag(&foreignEdit,"body","Ordinary text");
+    auto* foreignReplace=new gloox::Tag(&foreignEdit,"replace");foreignReplace->setXmlns("urn:wrong");foreignReplace->addAttribute("id","original-wire");
+    client.handleTag(&foreignEdit);check(wire.corrections==1 && wire.contents==3,"foreign replace namespace is not a correction");
     std::cout<<checks<<" reaction and attachment checks passed\n";
 }

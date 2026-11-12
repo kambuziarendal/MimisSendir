@@ -95,7 +95,7 @@ public:
 	 */
 	bool                 AddToTalk(std::string username, std::list<TextSpan>& spans,
 							TalkView::user_type type, bool parseLinks = false, int64 timestamp = 0,
-		bool archive = false, const std::string& messageId = "", const std::string& attachment = "", const std::string& senderJid = "");
+		bool archive = false, const std::string& messageId = "", const std::string& attachment = "", const std::string& senderJid = "", const std::string& wireId = "");
 
 	void                 ShowError(const gloox::StanzaError& error, bool deliveryFailure = false);
 
@@ -174,7 +174,10 @@ private:
     bool fReplayingHistory = false;
     bool fLoadingArchive = false;
     std::deque<BMessage> fDeferredReactions;
-    void RestoreHistory();
+    void RestoreHistory(bool reload=true);
+    void RebuildHistory();
+    void EndEdit();
+    std::string fEditId, fEditSavedDraft;
     void SyncHistory();
     int64 fArchiveSince=0;
     int64 fArchiveStarted=0;

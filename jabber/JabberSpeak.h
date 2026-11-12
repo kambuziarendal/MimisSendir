@@ -23,6 +23,7 @@
 
 #include <map>
 #include <deque>
+#include <functional>
 #include <string>
 #include <Looper.h>
 #include "Agent.h"
@@ -122,7 +123,8 @@ public:
 
 	std::string QueueText(const std::string& recipient, const std::string& text,
         bool group, const BMessenger& target, const std::string& mention = "",
-        const std::string& replyId = "", const std::string& replyTo = "", size_t fallbackEnd = 0);
+        const std::string& replyId = "", const std::string& replyTo = "", size_t fallbackEnd = 0, const std::string& replaceId = "",
+        const std::function<bool(const std::string&)>& prepare = {});
 	std::shared_ptr<Upload::Task> QueueUpload(const std::string& path,
 		const std::string& recipient, bool group, const BMessenger& target, std::shared_ptr<Giphy::Transfer> mediaLease = {});
 
@@ -179,6 +181,7 @@ private:
         std::string reactionId;
         std::string replyId, replyTo;
         size_t fallbackEnd=0;
+        std::string replaceId;
     };
     std::mutex fTextLock;
     std::deque<TextRequest> fTextQueue;

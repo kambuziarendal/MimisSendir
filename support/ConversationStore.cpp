@@ -100,6 +100,12 @@ bool Store::Record(Summary message, bool incoming, bool visible, bool archive)
     for (size_t i = kLimit; i < ordered.size(); ++i) fItems.erase(ordered[i].jid);
     return true;
 }
+bool Store::CorrectPreview(const std::string& jid,const std::string& id,const std::string& body) {
+    auto found=fItems.find(jid);
+    if(id.empty() || found==fItems.end() || found->second.lastMessageId!=id)return false;
+    const auto preview=Preview(body);if(found->second.preview==preview)return false;
+    found->second.preview=preview;return true;
+}
 bool Store::SetFavorite(Summary item, bool favorite)
 {
     item.jid = item.jid.substr(0, item.jid.find('/'));

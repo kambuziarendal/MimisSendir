@@ -23,6 +23,7 @@ ParagraphStyle::ParagraphStyle(const ParagraphStyle& other)
     fMessageBody(other.fMessageBody), fMessageSender(other.fMessageSender), fMessageAuthor(other.fMessageAuthor),
     fOwnReaction(other.fOwnReaction),
     fOwnReactionBitmap(other.fOwnReactionBitmap),
+    fReactionBadges(other.fReactionBadges),
 	fStyleData(other.fStyleData)
 {
 }
@@ -42,6 +43,7 @@ ParagraphStyle::operator=(const ParagraphStyle& other)
     fMessageBody=other.fMessageBody;fMessageSender=other.fMessageSender;fMessageAuthor=other.fMessageAuthor;
     fOwnReaction = other.fOwnReaction;
     fOwnReactionBitmap = other.fOwnReactionBitmap;
+    fReactionBadges=other.fReactionBadges;
 	fStyleData = other.fStyleData;
 	return *this;
 }
@@ -54,6 +56,7 @@ ParagraphStyle::operator==(const ParagraphStyle& other) const
 		return true;
 
 	if(fMessageBody!=other.fMessageBody || fMessageSender!=other.fMessageSender || fMessageAuthor!=other.fMessageAuthor)return false;
+	if(fReactionBadges!=other.fReactionBadges)return false;
 	if(fAvatar!=other.fAvatar||fAvatarName!=other.fAvatarName)return false;
 	if (fMessageTime != other.fMessageTime || fDateDivider != other.fDateDivider || fOwnReaction != other.fOwnReaction || fReactionId != other.fReactionId || fMessageKind != other.fMessageKind) return false;
 	if (fStyleData == other.fStyleData)

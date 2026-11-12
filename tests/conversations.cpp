@@ -140,6 +140,14 @@ int main() {
     Check(hiddenRestart.Load(path));Check(hiddenRestart.Find("legacy@x")->favorite && !hiddenRestart.Find("legacy@x")->hiddenAt);
     Check(hiddenRestart.Save(path));Check(hiddenRestart.Load(path));
     Check(hiddenRestart.Find("legacy@x")->activity==1234 && hiddenRestart.Find("legacy@x")->unread==2);
+    Check(!hiddenRestart.CorrectPreview("legacy@x","other-id","Wrong"));
+    Check(!hiddenRestart.CorrectPreview("other@x","old-id","Wrong"));
+    Check(hiddenRestart.Hide("legacy@x",2000));
+    Check(hiddenRestart.CorrectPreview("legacy@x","old-id","Edited 🌞"));
+    auto corrected=hiddenRestart.Find("legacy@x");
+    Check(corrected->preview=="Edited 🌞" && corrected->activity==1234 && corrected->unread==2 && corrected->favorite && corrected->hiddenAt==2000);
+    Check(!hiddenRestart.CorrectPreview("legacy@x","old-id","Edited 🌞"));
+    Check(hiddenRestart.Save(path) && hiddenRestart.Load(path) && hiddenRestart.Find("legacy@x")->preview=="Edited 🌞");
     unlink(path.c_str());
     std::cout << checks << " conversation checks passed\n";
 }

@@ -15,12 +15,12 @@
   },
   "channels": {
     "beta": {
-      "version": "0.1.0~beta3-6",
+      "version": "0.1.0~beta4-5",
       "kind": "hpkg",
       "artifacts": {
         "x86_64": {
-          "url": "https://github.com/kambuziarendal/MimisSendir/releases/download/v0.1.0-beta.3/mimissendir-0.1.0~beta3-6-x86_64.hpkg",
-          "sha256": "8be9de3df1bdf79fd1871e819fc7d88375132e6be145a0b00cd8a72e55b35a34"
+          "url": "https://github.com/kambuziarendal/MimisSendir/releases/download/v0.1.0-beta.4/mimissendir-0.1.0~beta4-5-x86_64.hpkg",
+          "sha256": "05412c217cd00ec526a6c2c598696082a89c606a74e7779d8d985bf5042006c7"
         }
       }
     }

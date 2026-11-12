@@ -78,23 +78,14 @@ void ReactionController::Render(Record& record) {
     auto own=record.state.actors.find("self");
     if(own!=record.state.actors.end()&&!own->second.values.empty())ownEmoji=*own->second.values.begin();
     auto style=paragraph.Style();style.SetReactionId(record.id);
-    style.SetOwnReaction(ownEmoji,ColorEmoji(ownEmoji));paragraph.SetStyle(style);
-    CharacterStyle normal;normal.SetForegroundColor(B_DOCUMENT_TEXT_COLOR);normal.SetFontSize(11);
-    auto action=[&](const std::string& label,CharacterStyle style) {
-        TextSpan span(label.c_str(),style);auto* click=new BMessage('rBdg');click->AddString("id",record.id.c_str());
-        span.SetClickMessage(click);paragraph.Append(span);
-    };
-    auto counts=record.state.Counts();
-    // The selected own emoji lives in the corner, not twice in the bubble.
-    if(!ownEmoji.empty()) {auto count=counts.find(ownEmoji);if(count!=counts.end()&&!--count->second)counts.erase(count);}
-
-    if(!counts.empty())action("\n",normal);
-    for(const auto& [emoji,count]:counts) {
-        CharacterStyle style(normal);BFont font(be_plain_font);font.SetFamilyAndStyle("Noto Emoji",nullptr);font.SetSize(15);style.SetFont(font);
-        if(auto image=ColorEmoji(emoji)) {
-            TextSpan span(" ",style);span.SetBitmap(image);span.SetClickMessage(new BMessage('rBdg'));paragraph.Append(span);
-        } else action(" " + emoji + " ",style);action(std::to_string(count)+"   ",normal);
+    style.SetOwnReaction(ownEmoji,ColorEmoji(ownEmoji));
+    std::vector<ParagraphStyle::ReactionBadge> badges;
+    for(const auto& [emoji,count]:record.state.Counts()) {
+        // The footer shows at most three distinct icons and an overflow count.
+        // Keep all totals for resizing, but decode only the visible candidates.
+        badges.push_back({emoji,count,badges.size()<3?ColorEmoji(emoji):nullptr});
     }
+    style.SetReactionBadges(std::move(badges));paragraph.SetStyle(style);
     auto* bar=fTimeline.ScrollBar(B_VERTICAL);float low=0,high=0;if(bar)bar->GetRange(&low,&high);
     bool bottom=bar && bar->Value()>=high-1;
     fDocument->SetParagraph(record.paragraph,paragraph);

@@ -333,7 +333,7 @@ void TalkView::AttachedToWindow()
     if(!fHistory) {
         BPath root;find_directory(B_USER_SETTINGS_DIRECTORY,&root);root.Append("jabber-for-beos");
         fHistory=std::make_unique<ChatHistory>(root.Path(),JabberSpeak::Instance()->GlooxClient()->jid().bare(),
-            IsGroupChat()?_group_room:_session->target().bare());
+            IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat());
         RestoreHistory();
     }
 	if (IsGroupChat()) {
@@ -360,6 +360,7 @@ void TalkView::AttachedToWindow()
     if(auto* media=dynamic_cast<BButton*>(FindView("emoji-media")))media->SetTarget(this);
     for(int32 i=0;i<fEmojiStrip->CountChildren();++i)if(auto* choice=dynamic_cast<BButton*>(fEmojiStrip->ChildAt(i)))choice->SetTarget(this);
 	fCancelUpload->SetTarget(this);
+    if(auto* cancel=dynamic_cast<BButton*>(FindView("cancel-reply")))cancel->SetTarget(this);
 	fParticipants->SetTarget(this);
 	if (auto* send = dynamic_cast<BButton*>(FindView("send-message"))) send->SetTarget(this);
 
@@ -462,7 +463,7 @@ void TalkView::MessageReceived(BMessage *msg) {
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
         msg->RemoveName("name");msg->AddString("name",fFriendlyName.c_str());
     }
-    if(msg->what=='rInc' && fLoadingArchive){if(fDeferredReactions.size()<128)fDeferredReactions.push_back(*msg);return;}
+    if((msg->what=='rInc' || msg->what=='mCor') && fLoadingArchive){if(fDeferredReactions.size()<128)fDeferredReactions.push_back(*msg);return;}
     if(msg->what=='rSet' && fLoadingArchive){SetStatus("Wait for history to finish loading before reacting.");return;}
     if(msg->what=='hDon') {
         fLoadingArchive=false;std::vector<BMessage> records;BMessage m;bool changed=false;
@@ -474,6 +475,10 @@ void TalkView::MessageReceived(BMessage *msg) {
             if(!IsGroupChat()){item.RemoveName("name");item.AddString("name",item.GetBool("outgoing",false)?OurRepresentation().c_str():fFriendlyName.c_str());}
             else if(std::string(item.GetString("name",""))==_group_username){item.RemoveName("outgoing");item.AddBool("outgoing",true);}
             changed=fHistory->MergeArchive(item)||changed;
+        }
+        for(auto& item:records)if(item.what=='mCor') {
+            const bool own=item.GetBool("outgoing",false) || (IsGroupChat() && std::string(item.GetString("name",""))==_group_username);
+            changed=fHistory->Correct(item.GetString("replace",""),item.GetString("id",""),item.GetString("body",""),item.GetString("sender",""),own,item.GetInt64("time",0))||changed;
         }
         // Rebuild once, chronologically, after the bounded archive batch. No outgoing replay.
         if(changed) {
@@ -490,7 +495,7 @@ void TalkView::MessageReceived(BMessage *msg) {
             else if(std::string(item.GetString("name",""))==_group_username){item.RemoveName("actor");item.AddString("actor","self");}
             fReactions->Handle(item);
         }
-        for(const auto& live:fDeferredReactions){if(fReactions)fReactions->Handle(live);}
+        for(auto live:fDeferredReactions){if(live.what=='mCor')MessageReceived(&live);else if(fReactions)fReactions->Handle(live);}
         fDeferredReactions.clear();
         if(initial || changed || !msg->GetBool("complete",false) || !fHistory->Error().empty())
             SetStatus(fHistory->Error().empty()?msg->GetString("status","History loaded."):fHistory->Error());
@@ -505,12 +510,39 @@ void TalkView::MessageReceived(BMessage *msg) {
         }
         case 'mCtx': {
             auto* menu=new BPopUpMenu("Message");
-            for(const auto& choice:std::vector<std::pair<const char*,uint32>>{{"Reply",'mRpl'},{"Forward…",'mFwd'},{"Copy",'mCpy'},{"React…",'rMor'}}) {
+            for(const auto& choice:std::vector<std::pair<const char*,uint32>>{{"Reply",'mRpl'},{"Edit…",'mEdt'},{"Forward…",'mFwd'},{"Copy",'mCpy'},{"React…",'rMor'}}) {
+                if(choice.second=='mEdt' && (!fHistory || !fHistory->Editable(msg->GetString("id",""),IsGroupChat())))continue;
                 auto* action=new BMessage(*msg);action->what=choice.second;
                 auto* item=new BMenuItem(choice.first,action);menu->AddItem(item);item->SetTarget(this);
+                if(choice.second=='mEdt')item->SetEnabled(fMessageInput->IsEditable() && fEditId.empty() && fReplyId.empty() && !fLoadingArchive);
                 if(choice.second=='mRpl'||choice.second=='rMor')item->SetEnabled(fMessageInput->IsEditable() && *msg->GetString("id",""));
             }
             menu->Go(msg->GetPoint("point",BPoint()),true,true,true);break;
+        }
+        case 'mEdt': {
+            const std::string id=msg->GetString("id","");
+            if(!fMessageInput->IsEditable() || !fEditId.empty() || !fReplyId.empty() || fLoadingArchive
+                || !fHistory || !fHistory->Editable(id,IsGroupChat()))break;
+            auto original=fHistory->Record(id);
+            const auto* delivery=fDeliveries.Find(original.GetString("id",""));
+            if(delivery && (delivery->state==Chat::Delivery::Queued || delivery->state==Chat::Delivery::Failed)) {
+                SetStatus("This message has not been sent. Retry the original message first.");break;
+            }
+            fEditSavedDraft=fMessageInput->Text();fEditId=original.GetString("id","");
+            fMessageInput->SetText(original.GetString("failed-edit-body",original.GetString("body","")));
+            fReplyLabel->SetText("Edit message. Enter saves; Cancel keeps the original.");
+            fReplyLabel->SetToolTip(original.GetString("body",""));
+            if(auto* cancel=dynamic_cast<BButton*>(FindView("cancel-reply")))cancel->SetLabel("Cancel edit");
+            if(fReplyStrip->IsHidden())fReplyStrip->Show();
+            fMessageInput->MakeFocus(true);break;
+        }
+        case 'mCor': {
+            if(!fHistory)break;
+            const std::string id=msg->GetString("id","");
+            const bool own=msg->GetBool("outgoing",false);
+            if(fHistory->Correct(msg->GetString("replace",""),id,msg->GetString("body",""),msg->GetString("sender",""),own,msg->GetInt64("time",real_time_clock_usecs())))RebuildHistory();
+            if(own && fHistory->IsCorrection(id))SetStatus("Edit accepted by XMPP; delivery is not yet confirmed.");
+            break;
         }
         case 'mCpy': {
             const std::string body=msg->GetString("body","");
@@ -522,7 +554,7 @@ void TalkView::MessageReceived(BMessage *msg) {
             Window()->PostMessage(&forward);break;
         }
         case 'mRpl': {
-            if(!fMessageInput->IsEditable())break;
+            if(!fMessageInput->IsEditable() || !fEditId.empty())break;
             fReplyId=msg->GetString("id","");fReplyTo=msg->GetString("sender","");fReplyBody=Chat::ReplyPrefix(msg->GetString("body",""));
             if(fReplyId.empty())break;
             const std::string label="Reply to "+std::string(msg->GetString("author",""))+": "+Conversations::Preview(msg->GetString("body",""));
@@ -530,7 +562,7 @@ void TalkView::MessageReceived(BMessage *msg) {
             if(fReplyStrip->IsHidden())fReplyStrip->Show();
             fMessageInput->MakeFocus(true);break;
         }
-        case 'mRcl': fReplyId.clear();fReplyTo.clear();fReplyBody.clear();if(!fReplyStrip->IsHidden())fReplyStrip->Hide();break;
+        case 'mRcl': if(!fEditId.empty())EndEdit();fReplyId.clear();fReplyTo.clear();fReplyBody.clear();if(!fReplyStrip->IsHidden())fReplyStrip->Hide();break;
         case 'rMor': {
             if(!fMessageInput->IsEditable())break;
             if(fReactionPicker.IsValid())fReactionPicker.SendMessage(B_QUIT_REQUESTED);
@@ -572,7 +604,7 @@ void TalkView::MessageReceived(BMessage *msg) {
 			break;
 		case 'uSel':
 		{
-			if (!fMessageInput->IsEditable()) break;
+			if (!fMessageInput->IsEditable() || !fEditId.empty()) break;
 			if (!fAttachmentPanel) {
 				BMessenger target(this);
 				BMessage selected('uRef');
@@ -587,7 +619,7 @@ void TalkView::MessageReceived(BMessage *msg) {
             struct Reply { BMessage* request; bool accepted=false; ~Reply() { if(request->HasInt64("media-token")) { BMessage result('gAck');result.AddBool("accepted",accepted);request->SendReply(&result); } } } reply{msg};
             auto lease = Giphy::Acquire(msg->GetInt64("media-token",0));
             if(msg->HasInt64("media-token") && !lease)break;
-			if (!fMessageInput->IsEditable()) break;
+			if (!fMessageInput->IsEditable() || !fEditId.empty()) break;
 			if (fUploadTask) break;
 			entry_ref ref;
 			if (msg->FindRef("refs", &ref) != B_OK) break;
@@ -914,7 +946,7 @@ void TalkView::MessageReceived(BMessage *msg) {
         case 'rTry': {
             const auto* failed = fDeliveries.Find(msg->GetString("id", ""));
             if (!failed || failed->state != Chat::Delivery::Failed) break;
-            if (fMessageInput->TextLength() != 0 || !fReplyId.empty()) {
+            if (fMessageInput->TextLength() != 0 || !fReplyId.empty() || !fEditId.empty()) {
                 SetStatus("Finish or save your current draft before restoring the failed message.");
                 break;
             }
@@ -938,6 +970,17 @@ void TalkView::MessageReceived(BMessage *msg) {
 			if (message.IsEmpty())
 				break;
 
+            if(!fEditId.empty()) {
+                if(!fHistory || !fHistory->Editable(fEditId,IsGroupChat())){SetStatus("This message can no longer be edited.");break;}
+                auto original=fHistory->Record(fEditId);
+                if(std::string(message.String())==original.GetString("body","")){EndEdit();break;}
+                const std::string target=original.GetString("wire-id",fEditId.c_str());
+                if(target.empty()){SetStatus("Original message ID is unavailable. Nothing was sent.");break;}
+                auto id=JabberSpeak::Instance()->QueueText(IsGroupChat()?_group_room:_session->target().full(),message.String(),IsGroupChat(),BMessenger(this),"","","",0,target,
+                    [&](const std::string& request){return fHistory->Correct(fEditId,request,message.String(),original.GetString("sender",""),true,real_time_clock_usecs());});
+                if(id.empty()){SetStatus("Edit not queued. Your edited text is retained.");break;}
+                EndEdit();RebuildHistory();SetStatus("Edit sent. Delivery is not yet confirmed.");break;
+            }
 			if (_session == NULL) {
 				// FIXME is it ok to do this from window thread? Or should
 				// we go through main app?
@@ -1041,13 +1084,16 @@ void TalkView::MessageReceived(BMessage *msg) {
             break;
         }
         case kMessageSubmitted:
+            if(fHistory && fHistory->IsCorrection(msg->GetString("id","")))break;
             DeliveryStatus(msg->GetString("id", ""), Chat::Delivery::Unconfirmed);
             break;
         case kMessageReceipt:
+            if(fHistory && fHistory->ConfirmCorrection(msg->GetString("id",""))){RebuildHistory();SetStatus("Edit delivered.");break;}
             DeliveryStatus(msg->GetString("id", ""), Chat::Delivery::Delivered);
             break;
         case kMessageDeliveryError: {
             const std::string id = msg->GetString("id", "");
+            if(fHistory && fHistory->RejectCorrection(id)){RebuildHistory();SetStatus("Edit rejected. Original restored; choose Edit to recover your changed text.");break;}
             const auto* outgoing = fDeliveries.Find(id);
             if (outgoing && outgoing->state == Chat::Delivery::Delivered) break;
             DeliveryStatus(id, Chat::Delivery::Failed);
@@ -1245,7 +1291,7 @@ ConsistentColor(const std::string& username)
 
 
 bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
-	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& attachment, const std::string& senderJid)
+	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& attachment, const std::string& senderJid, const std::string& wireId)
 {
 	if (runs.empty()) return false;
     std::string rawBody;for(const auto& run:runs)rawBody+=run.Text().String();
@@ -1286,6 +1332,7 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
         record.AddString("id",messageId.empty()?("local-"+std::to_string(system_time())).c_str():messageId.c_str());
         record.AddString("body",body.c_str());record.AddString("name",username.c_str());
         record.AddString("sender",sender.c_str());record.AddString("attachment",attachment.c_str());record.AddInt64("time",timestamp);
+        if(!wireId.empty())record.AddString("wire-id",wireId.c_str());
         record.AddBool("outgoing",type==LOCAL);fHistory->Put(record);
         if(!fHistory->Error().empty())SetStatus(fHistory->Error());
     }
@@ -1350,7 +1397,12 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
 	paragraphStyle.SetFirstLineInset(0);
     if(type!=OTHER) {
         const time_t seconds=timestamp>0?timestamp/1000000:0;
-        paragraphStyle.SetMessageTime(ChatDate::Clock(seconds));
+        std::string clock=ChatDate::Clock(seconds);
+        if(fHistory && !messageId.empty()) {
+            auto record=fHistory->Record(messageId);const std::string state=record.GetString("edit-state","");
+            if(!state.empty())clock+=state=="unconfirmed"?" · edited, unconfirmed":" · edited";
+        }
+        paragraphStyle.SetMessageTime(clock);
         const auto day=ChatDate::Day(seconds);
         if(day!=fLastMessageDay) {
             ParagraphStyle separator;separator.SetDateDivider(seconds);separator.SetSpacingTop(12);separator.SetSpacingBottom(8);
@@ -1860,6 +1912,7 @@ void TalkView::DeliveryStatus(const std::string& id, Chat::Delivery state)
         return;
     }
     if (state != Chat::Delivery::Queued && !fDeliveries.Update(id, state)) return;
+    if(fHistory)fHistory->Delivery(id,static_cast<int32>(state));
     const bool media = Upload::IsServiceUrl(message->text, Upload::Profile::Load().authority);
     std::string text = std::string(Chat::Deliveries::Label(state)) + ": "
         + (media ? Upload::AttachmentFilename(message->text) : Conversations::Preview(message->text));
@@ -1890,8 +1943,8 @@ void TalkView::SyncHistory() {
     if(fLoadingArchive && !fArchiveSince)SetStatus("Checking for missing server history…");
 }
 
-void TalkView::RestoreHistory() {
-    auto records=fHistory->Load();fReplayingHistory=true;
+void TalkView::RestoreHistory(bool reload) {
+    auto records=reload?fHistory->Load():fHistory->Records();fReplayingHistory=true;
     for(const auto& m:records) {
         std::list<TextSpan> runs;runs.emplace_back(m.GetString("body",""),CharacterStyle());
         AddToTalk(m.GetString("name",""),runs,m.GetBool("outgoing",false)?LOCAL:MAIN_RECIPIENT,true,
@@ -1907,8 +1960,32 @@ void TalkView::RestoreHistory() {
 
 void TalkView::InsertForwardedDraft(const std::string& text) {
     if(!fMessageInput->IsEditable())return;
+    if(!fEditId.empty()){SetStatus("Finish or cancel the edit before forwarding a message.");return;}
     const std::string draft=std::string(fMessageInput->Text())+(fMessageInput->TextLength()?"\n\n":"")+"Forwarded message:\n"+text;
     if(draft.size()>65536){SetStatus("Forward is too long for this draft. Nothing was changed.");return;}
     fMessageInput->SetText(draft.c_str());fMessageInput->Select(draft.size(),draft.size());fMessageInput->MakeFocus(true);
     SetStatus("Forward added to your draft. Review the recipient and text, then press Send.");
+}
+
+void TalkView::EndEdit() {
+    fEditId.clear();fMessageInput->SetText(fEditSavedDraft.c_str());fEditSavedDraft.clear();
+    if(auto* cancel=dynamic_cast<BButton*>(FindView("cancel-reply")))cancel->SetLabel("Cancel reply");
+    if(!fReplyStrip->IsHidden())fReplyStrip->Hide();
+    fMessageInput->MakeFocus(true);
+}
+void TalkView::RebuildHistory() {
+    auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
+    const float position=bar->Value();const bool bottom=position>=high-1;
+    fLastMessageDay.clear();fTimelineDocument.SetTo(new TextDocument(),true);fTimeline->SetTextDocument(fTimelineDocument);
+    if(fReactions)fReactions->Rebind(fTimelineDocument);
+    if(fAttachments)fAttachments->Rebind(fTimelineDocument);
+    RestoreHistory(false);if(!bottom)bar->SetValue(position);
+    const auto records=fHistory->Records();
+    if(!records.empty()) {
+        const auto& last=records.back();BMessage preview('cAct');preview.AddBool("edit",true);
+        preview.AddString("jid",IsGroupChat()?_group_room.c_str():_session->target().bare().c_str());
+        preview.AddString("id",last.GetString("id",""));preview.AddString("preview",last.GetString("body",""));
+        preview.AddUInt64("generation",JabberSpeak::Instance()->ConnectionGeneration());
+        BlabberMainWindow::Instance()->PostMessage(&preview);
+    }
 }

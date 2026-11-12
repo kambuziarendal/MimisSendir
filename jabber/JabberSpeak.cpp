@@ -2,6 +2,7 @@
 #include "network/DeliveryReceipt.h"
 #include "network/Reactions.h"
 #include "network/Reply.h"
+#include "network/Correction.h"
 #include "support/ReplyDraft.h"
 #include "network/references.h"
 //////////////////////////////////////////////////
@@ -271,7 +272,9 @@ void JabberSpeak::_ConnectionThread()
 	// Prepare for handling carbons
 	fClient->registerStanzaExtension(new Chat::Receipt());
     fClient->registerStanzaExtension(new Chat::Reactions());
+    fClient->registerStanzaExtension(new Chat::Correction());
     fClient->disco()->addFeature("urn:xmpp:reactions:0");
+    fClient->disco()->addFeature("urn:xmpp:message-correct:0");
     fClient->registerStanzaExtension(new Chat::StableId());
 	fClient->registerStanzaExtension(new gloox::Forward());
 	fClient->registerStanzaExtension(new gloox::Carbons());
@@ -958,16 +961,18 @@ std::shared_ptr<Upload::Task> JabberSpeak::QueueUpload(const std::string& path,
 
 std::string JabberSpeak::QueueText(const std::string& recipient,
     const std::string& text, bool group, const BMessenger& target, const std::string& mention,
-    const std::string& replyId, const std::string& replyTo, size_t fallbackEnd)
+    const std::string& replyId, const std::string& replyTo, size_t fallbackEnd, const std::string& replaceId,
+    const std::function<bool(const std::string&)>& prepare)
 {
     static std::atomic<uint64_t> sequence{0};
     std::lock_guard<std::mutex> lock(fTextLock);
     if (!CanSendTo(recipient) || text.empty() || text.size() > 65536 || fTextQueue.size() >= 32
-        || replyId.size()>1024 || replyTo.size()>3071 || fallbackEnd>Chat::Codepoints(text))
+        || replaceId.size()>1024 || (!replaceId.empty() && !replyId.empty()) || replyId.size()>1024 || replyTo.size()>3071 || fallbackEnd>Chat::Codepoints(text))
         return {};
     const auto id = "renga-" + std::to_string(system_time()) + "-"
         + std::to_string(++sequence);
-    fTextQueue.push_back({id, recipient, text, mention, group, target, "", replyId, replyTo, fallbackEnd});
+    if(prepare && !prepare(id))return {};
+    fTextQueue.push_back({id, recipient, text, mention, group, target, "", replyId, replyTo, fallbackEnd, replaceId});
     return id;
 }
 
@@ -979,7 +984,7 @@ std::string JabberSpeak::QueueReaction(const std::string& recipient, const std::
     if(!CanSendTo(recipient) || id.empty() || id.size()>1024 || emoji.size()>64
         || emoji.find_first_of("\r\n\t")!=std::string::npos || fTextQueue.size()>=32)return {};
     auto request="reaction-"+std::to_string(system_time())+"-"+std::to_string(++sequence);
-    fTextQueue.push_back({request,recipient,emoji,"",group,target,id,"","",0});return request;
+    fTextQueue.push_back({request,recipient,emoji,"",group,target,id,"","",0,""});return request;
 }
 
 void JabberSpeak::QueueAvatar(const std::string& account,const std::string& jid) {
@@ -1006,6 +1011,7 @@ void JabberSpeak::_SendQueuedText()
             if (!request.reactionId.empty()) message.addExtension(new Chat::Reactions(request.reactionId,
                 request.text.empty() ? std::vector<std::string>{} : std::vector<std::string>{request.text}));
             else if (!request.group) message.addExtension(new Chat::Receipt(true));
+            if(!request.replaceId.empty()) message.addExtension(new Chat::Correction(request.replaceId));
             if(!request.replyId.empty()) {
                 message.addExtension(new Chat::Reply(request.replyId,request.replyTo));
                 message.addExtension(new Chat::ReplyFallback(request.fallbackEnd));

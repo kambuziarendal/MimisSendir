@@ -516,7 +516,10 @@ void RosterView::RecordActivity(BMessage* message) {
     item.jid = message->GetString("jid", ""); item.name = message->GetString("name", "");
     item.preview = message->GetString("preview", ""); item.group = message->GetBool("group", false);
     item.activity = message->GetInt64("time", 0); item.lastMessageId = message->GetString("id", "");
-    if (fRecent.Record(item, message->GetBool("incoming", false), message->GetBool("visible", false), message->GetBool("archive", false))) {
+    const bool changed=message->GetBool("edit",false)
+        ? fRecent.CorrectPreview(item.jid,item.lastMessageId,item.preview)
+        : fRecent.Record(item,message->GetBool("incoming",false),message->GetBool("visible",false),message->GetBool("archive",false));
+    if(changed) {
         if (!fRecentPath.empty() && !fRecent.Save(fRecentPath)) fprintf(stderr, "Could not save conversation summaries\n");
         UpdateRoster();
     }

@@ -342,6 +342,16 @@ void TalkManager::DeliverMessage(const gloox::Message& msg,
             }
         }
     }
+    if (kind == Chat::MessageKind::Correction) {
+        const auto* correction=msg.findExtension<Chat::Correction>(Chat::Correction::kExtension);
+        auto found=fTalkMap.find(session);
+        if(found!=fTalkMap.end() && correction) {
+            BMessage edit('mCor');edit.AddString("replace",correction->id().c_str());edit.AddString("id",msg.id().c_str());
+            edit.AddString("body",msg.body().c_str());edit.AddString("sender",msg.from().bare().c_str());edit.AddBool("outgoing",outgoing);
+            edit.AddInt64("time",msg.when()?Conversations::ArchiveTime(msg.when()->stamp()):real_time_clock_usecs());PostToView(found->second,edit);
+        }
+        return;
+    }
     if (kind == Chat::MessageKind::Reaction) {
         const auto* r=msg.findExtension<Chat::Reactions>(Chat::Reactions::kExtension);
         auto found=fTalkMap.find(session);
@@ -767,6 +777,14 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
         PostToView(known->second, notice);
         return;
     }
+    if (const auto* correction=msg.findExtension<Chat::Correction>(Chat::Correction::kExtension)) {
+        if(!priv) {
+            BMessage edit('mCor');edit.AddString("replace",correction->id().c_str());edit.AddString("id",msg.id().c_str());
+            edit.AddString("body",msg.body().c_str());edit.AddString("sender",msg.from().full().c_str());edit.AddBool("outgoing",msg.from().resource()==room->nick());
+            edit.AddInt64("time",msg.when()?Conversations::ArchiveTime(msg.when()->stamp()):real_time_clock_usecs());PostToView(known->second,edit);
+        }
+        return;
+    }
     if (const auto* r=msg.findExtension<Chat::Reactions>(Chat::Reactions::kExtension)) {
         if(!r->id().empty() && !priv) {
             BMessage n('rInc');n.AddString("id",r->id().c_str());
@@ -969,7 +987,7 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
                 ? TalkView::LOCAL : TalkView::MAIN_RECIPIENT;
             if (window->AddToTalk(group_username, runs, type, autoHyperlink,
                 msg.when() ? Conversations::ArchiveTime(msg.when()->stamp()) : 0,
-                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority)))
+                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority), msg.from().full(), msg.id()))
                 window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
 
 			// May not be locked if the view is not added to a winow yet

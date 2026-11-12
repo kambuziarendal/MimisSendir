@@ -9,12 +9,21 @@
 #include <string>
 #include <ctime>
 #include <memory>
+#include <vector>
 class BBitmap;
 namespace Avatars { struct Image; }
 
 
 class ParagraphStyle {
 public:
+    struct ReactionBadge {
+        std::string emoji;
+        size_t count=1;
+        std::shared_ptr<BBitmap> bitmap;
+        bool operator==(const ReactionBadge& other) const { return emoji==other.emoji && count==other.count && bitmap==other.bitmap; }
+    };
+    void SetReactionBadges(std::vector<ReactionBadge> badges) { fReactionBadges=std::move(badges); }
+    const std::vector<ReactionBadge>& ReactionBadges() const { return fReactionBadges; }
 								ParagraphStyle();
 								ParagraphStyle(const ParagraphStyle& other);
 
@@ -75,6 +84,7 @@ private:
     std::string fMessageBody, fMessageSender, fMessageAuthor;
     std::string fOwnReaction;
     std::shared_ptr<BBitmap> fOwnReactionBitmap;
+    std::vector<ReactionBadge> fReactionBadges;
 			ParagraphStyleDataRef fStyleData;
 };
 

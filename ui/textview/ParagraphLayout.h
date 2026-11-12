@@ -209,11 +209,16 @@ public:
 
 public:
     BRect ReactionButton();
+    BRect TimeBounds();
     BRect MessageBounds() { return BRect(MessageLeft(),-4,MessageLeft()+MessageWidth(),Height()+4); }
     const std::string& ReactionId() const { return fParagraphStyle.ReactionId(); }
 private:
     float _InlineScale(const CharacterStyle& style) const;
     float AvatarSpace()const{return fParagraphStyle.AvatarName().empty()?0:38;}
+    std::vector<ParagraphStyle::ReactionBadge> VisibleReactions() const;
+    float ReactionWidth() const;
+    float TimeWidth() const;
+    bool FooterWraps() const;
     float MessageWidth() const { return std::min(std::max(40.f,fWidth-AvatarSpace()),std::min(640.0f, std::max(80.0f, fWidth * 0.82f))); }
     float MessageLeft() const { return fParagraphStyle.MessageKind() == 2 ? std::max(0.0f, fWidth - MessageWidth()-AvatarSpace()) : AvatarSpace(); }
     float TextLeft() const { return fParagraphStyle.MessageKind() ? MessageLeft() + 10 : fParagraphStyle.LineInset(); }

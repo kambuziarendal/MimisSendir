@@ -173,5 +173,19 @@ int main()
             Check(view.clicked=='rMnu',"selected corner emoji retains reaction target after resizing");
         }
     }
+    for(int direction:{1,2})for(float width:{180.f,260.f,900.f}) {
+        ParagraphStyle footer;footer.SetMessageKind(direction);footer.SetReactionId("footer-message");footer.SetMessageTime("23:12 · edited, unconfirmed");
+        footer.SetReactionBadges({{"❤️",2,bitmap},{"👍",128,bitmap},{"😂",1,bitmap},{"🌞",4,bitmap}});
+        Paragraph p(footer);p.Append(TextSpan("Footer remains below content",style));
+        ParagraphLayout layout(p);layout.SetWidth(width);auto reactions=layout.ReactionButton(),clock=layout.TimeBounds(),bubble=layout.MessageBounds();
+        Check(reactions.IsValid() && reactions.left>=bubble.left && reactions.right<=bubble.right,"aggregate reaction footer stays inside narrow and wide bubbles");
+        Check(!reactions.Intersects(clock) && clock.right==bubble.right-8,"reactions do not overlap right-aligned clock or edited status");
+        float x1,y1,x2,y2;layout.GetTextBounds(p.Length()-1,x1,y1,x2,y2);
+        Check(reactions.top>=y2 && clock.top>=y2,"reaction and clock hit regions never cover message text");
+        Paragraph copy;CopyReactions(p,copy);Check(copy.Style().ReactionBadges()==footer.ReactionBadges(),"attachment redraw retains all reaction counts");
+        TextDocumentRef doc(new TextDocument(),true);doc->Append(p);ClickProbe view;view.SetTextDocument(doc);view.SetInsets(0);view.SetSelectionEnabled(false);view.FrameResized(width,500);
+        view.clicked=0;view.MouseDown(BPoint((reactions.left+reactions.right)/2,(reactions.top+reactions.bottom)/2));Check(view.clicked=='rMnu',"aggregate footer opens original message reaction menu");
+        view.clicked=0;view.MouseDown(BPoint((clock.left+clock.right)/2,(clock.top+clock.bottom)/2));Check(view.clicked==0,"clock is not a reaction target");
+    }
 	printf("%d native attachment text checks passed\n", checks);
 }

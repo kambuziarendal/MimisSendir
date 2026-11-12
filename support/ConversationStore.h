@@ -24,6 +24,7 @@ public:
     void Account(const std::string& account) { fAccount = account; fItems.clear(); }
     bool Record(Summary message, bool incoming, bool visible, bool archive = false);
     bool SetFavorite(Summary item, bool favorite);
+    bool CorrectPreview(const std::string& jid, const std::string& id, const std::string& body);
     bool Hide(const std::string& jid, int64_t when);
     void Read(const std::string& jid);
     void Rename(const std::string& jid, const std::string& name);

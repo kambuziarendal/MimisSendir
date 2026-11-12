@@ -12,7 +12,7 @@ inline Paragraph WithoutReactions(const Paragraph& original) {
     return result;
 }
 inline void CopyReactions(const Paragraph& original,Paragraph& result) {
-    auto style=result.Style();style.SetMessageContent(original.Style().MessageBody(),original.Style().MessageSender(),original.Style().MessageAuthor());style.SetAvatar(original.Style().Avatar(),original.Style().AvatarName());style.SetMessageTime(original.Style().MessageTime());style.SetReactionId(original.Style().ReactionId());style.SetOwnReaction(original.Style().OwnReaction(),original.Style().OwnReactionBitmap());result.SetStyle(style);
+    auto style=result.Style();style.SetMessageContent(original.Style().MessageBody(),original.Style().MessageSender(),original.Style().MessageAuthor());style.SetAvatar(original.Style().Avatar(),original.Style().AvatarName());style.SetMessageTime(original.Style().MessageTime());style.SetReactionId(original.Style().ReactionId());style.SetOwnReaction(original.Style().OwnReaction(),original.Style().OwnReactionBitmap());style.SetReactionBadges(original.Style().ReactionBadges());result.SetStyle(style);
     for(int32 i=0;i<original.CountTextSpans();++i)
         if(IsReactionSpan(original.TextSpanAtIndex(i)))result.Append(original.TextSpanAtIndex(i));
 }

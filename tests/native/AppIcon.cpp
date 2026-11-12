@@ -21,7 +21,7 @@ int main(int argc, char** argv)
     char signature[B_MIME_TYPE_LENGTH] = {};
     if (info.GetVersionInfo(&version, B_APP_VERSION_KIND) != B_OK
         || version.major != 0 || version.middle != 1 || version.minor != 0
-        || version.variety != B_BETA_VERSION || version.internal != 3
+        || version.variety != B_BETA_VERSION || version.internal != 4
         || info.GetSignature(signature) != B_OK
         || std::strcmp(signature, "application/x-vnd.Haiku-Jabber") != 0) {
         std::fprintf(stderr, "Missing or incorrect application version/signature resources\n");
