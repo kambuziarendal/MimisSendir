@@ -6,8 +6,8 @@ Native messaging for **Haiku x86_64**, developed by **Kambuzi EDB**, based on [R
 
 [Download beta releases](https://github.com/kambuziarendal/MimisSendir/releases) · [Install and configure](docs/public/CLIENT.md) · [Build](COMPILING.md) · [Report a bug](https://github.com/kambuziarendal/MimisSendir/issues)
 
-![MímisSendir conversation in dark mode](docs/screenshots/conversation-dark.png)
-![MímisSendir group conversation in light mode](docs/screenshots/group-light.png)
+![MímisSendir beta 11 video previews in dark mode](docs/screenshots/conversation-dark-beta11.png)
+![MímisSendir beta 11 group conversation in light mode](docs/screenshots/group-light-beta11.png)
 
 Real Haiku screenshots with fictional accounts, messages and artwork. No private conversations are shown.
 
