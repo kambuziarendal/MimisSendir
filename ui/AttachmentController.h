@@ -23,6 +23,7 @@ private:
 	void Render(Record& record);
 	void Start(Record& record);
 	void SavePanel(Record& record);
+    void PlayVideo(Record& record);
 	void Poll();
 	static void Download(std::shared_ptr<Job> job, std::string authority, std::string caFile);
 	static void Save(std::shared_ptr<Job> job, std::string directory, std::string name);

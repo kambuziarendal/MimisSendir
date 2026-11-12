@@ -21,7 +21,11 @@ std::string AttachmentUrl(const gloox::Message& message, const std::string& auth
 {
 	const auto* oob = message.findExtension<gloox::OOB>(gloox::ExtOOB);
 	if (oob && IsServiceUrl(oob->url(), authority)) return oob->url();
-	std::string body = message.body();
+	return BodyAttachmentUrl(message.body(), authority);
+}
+std::string BodyAttachmentUrl(const std::string& text, const std::string& authority)
+{
+    std::string body = text;
 	const auto first = body.find_first_not_of(" \r\n\t");
 	if (first == std::string::npos) return {};
 	body = body.substr(first, body.find_last_not_of(" \r\n\t") - first + 1);
@@ -45,7 +49,7 @@ std::string AttachmentType(const std::string& filename) {
     if(ext=="pdf")return "PDF document";
     if(ext=="zip" || ext=="gz" || ext=="7z")return "Archive";
     if(ext=="mp3" || ext=="ogg" || ext=="m4a" || ext=="wav")return "Audio";
-    if(ext=="mp4" || ext=="mov" || ext=="webm")return "Video";
+    if(IsVideoFilename(filename))return "Video";
     if(ext=="txt" || ext=="md")return "Text document";
     if(ext=="doc" || ext=="docx" || ext=="odt")return "Document";
     if(ext=="xls" || ext=="xlsx" || ext=="ods")return "Spreadsheet";
@@ -58,6 +62,13 @@ std::string AttachmentDisplayName(const std::string& url) {
     if(stem.size()>=24 && std::all_of(stem.begin(),stem.end(),[](unsigned char c){return std::isxdigit(c);}))
         return "Received file"+(dot==std::string::npos?"":name.substr(dot));
     return name;
+}
+bool IsVideoFilename(const std::string& url)
+{
+    auto name = AttachmentFilename(url);
+    std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return std::tolower(c); });
+    return name.ends_with(".mp4") || name.ends_with(".m4v") || name.ends_with(".mov")
+        || name.ends_with(".webm") || name.ends_with(".mkv") || name.ends_with(".avi");
 }
 bool IsPreviewFilename(const std::string& url)
 {

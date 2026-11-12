@@ -34,7 +34,9 @@ Beta 6 adds read receipts: outgoing messages show a read indication when a match
 
 Beta 7 uses Signal-style status checks beside each outgoing message: one muted check for sent, two muted checks for delivered, and two white checks for read. It also silences historical and duplicate group-mention notifications on startup, without silencing new mentions.
 
-The newest client is **beta 8**. Earlier betas are retained for comparison and recovery, not recommended over beta 8. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Add your own GIPHY API key in Settings → GIPHY; it is stored in Haiku KeyStore, not the profile XML. Local GIFs work offline without a key.
+Beta 9 discovers an upload service advertised by your own authenticated XMPP server, recovers previews for older URL-only messages, and adds a video attachment card with **Play video**. Playback downloads the clip on demand and opens Haiku MediaPlayer. It is not an inline video player.
+
+The newest client is **beta 9**. Earlier betas are retained for comparison and recovery, not recommended over beta 9. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Add your own GIPHY API key in Settings → GIPHY; it is stored in Haiku KeyStore, not the profile XML. Local GIFs work offline without a key.
 
 Tested on Haiku R1/beta6 hrev59866+79, x86_64. No hosted messaging account is included. Signal needs an existing phone account and a separate bridge; **Signal encryption terminates at that bridge**, not at this Haiku application. This is not an official Signal client. See [security and privacy](docs/public/SECURITY-PRIVACY.md).
 

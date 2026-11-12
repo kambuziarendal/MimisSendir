@@ -38,7 +38,7 @@ bool Get(const std::string& url,Receive& receive,std::string& error) {
     curl_easy_setopt(c,CURLOPT_CONNECTTIMEOUT,10L);curl_easy_setopt(c,CURLOPT_TIMEOUT,30L);
     curl_easy_setopt(c,CURLOPT_WRITEFUNCTION,Write);curl_easy_setopt(c,CURLOPT_WRITEDATA,&receive);
     curl_easy_setopt(c,CURLOPT_NOPROGRESS,0L);curl_easy_setopt(c,CURLOPT_XFERINFOFUNCTION,Progress);
-    curl_easy_setopt(c,CURLOPT_XFERINFODATA,&receive);curl_easy_setopt(c,CURLOPT_USERAGENT,"mimissendir/0.1.0-beta.8");
+    curl_easy_setopt(c,CURLOPT_XFERINFODATA,&receive);curl_easy_setopt(c,CURLOPT_USERAGENT,"mimissendir/0.1.0-beta.9");
     auto result=curl_easy_perform(c);long status=0;curl_easy_getinfo(c,CURLINFO_RESPONSE_CODE,&status);
     if(result==CURLE_OK && status==200)return true;
     error=receive.cancelled->load()?"Cancelled.":status==429?"GIPHY search limit reached. Try again later.":status==401||status==403?"GIPHY rejected the API key.":"Could not load GIPHY. Check the connection or try another GIF.";

@@ -5,6 +5,7 @@
 #include "Reactions.h"
 #include "UploadManager.h"
 #include "HttpUpload.h"
+#include "AttachmentMetadata.h"
 #include "support/ConversationStore.h"
 #include <gloox/tag.h>
 #include <ctime>
@@ -87,7 +88,7 @@ bool ArchiveManager::Handle(const gloox::Message& message){
         item.AddBool("markable", ArchiveChild(msg,"markable","urn:xmpp:chat-markers:0") != nullptr);
         item.what='hRec';auto* body=ArchiveChild(msg,"body","jabber:client");std::string text=body?body->cdata():"";
         if(text.size()>65536)return true;
-        auto* oob=ArchiveChild(msg,"x","jabber:x:oob");auto* url=ArchiveChild(oob,"url","jabber:x:oob");auto attachment=url?url->cdata():text;
+        auto* oob=ArchiveChild(msg,"x","jabber:x:oob");auto* url=ArchiveChild(oob,"url","jabber:x:oob");auto attachment=url?url->cdata():Upload::BodyAttachmentUrl(text, Upload::Profile::Load().authority);
         if(Upload::IsServiceUrl(attachment,Upload::Profile::Load().authority))item.AddString("attachment",attachment.c_str());
         if(text.empty() && !item.HasString("attachment"))return true;
         item.AddString("body",text.c_str());

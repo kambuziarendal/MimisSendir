@@ -1,5 +1,6 @@
 // Synthetic metadata only. No real contacts or message content.
 #include "network/AttachmentMetadata.h"
+#include "network/UploadDiscovery.h"
 #include "network/MessagePresentation.h"
 #include "network/DeliveryReceipt.h"
 #include <gloox/oob.h>
@@ -13,7 +14,16 @@ static void Check(bool ok, const char* name) {
 	if (!ok) { std::cerr << "FAIL: " << name << '\n'; std::exit(1); }
 }
 int main() {
-	const std::string host = "upload.example.test";
+	Check(Upload::DiscoveryHost("upload.example.test", "example.test"), "same-domain discovery allowed");
+    for (const char* host : {"example.test.evil", "evil.test", "user@upload.example.test", "upload.example.test/resource", "upload.example.test:443"})
+        Check(!Upload::DiscoveryHost(host,"example.test"), "untrusted discovery target rejected");
+    Check(!Upload::DiscoveryHost("127.0.0.1", "127.0.0.1"), "numeric discovery rejected");
+    Check(Upload::IsVideoFilename("https://upload.example.test/clip.MP4?sig=abc"), "MP4 playback recognized");
+    Check(!Upload::IsVideoFilename("https://upload.example.test/x.exe?name=clip.mp4"), "query cannot spoof video type");
+    Check(!Upload::IsPreviewFilename("https://upload.example.test/clip.mp4"), "video never automatically downloads");
+    Check(Upload::BodyAttachmentUrl(" \nhttps://upload.example.test/clip.mp4\n", "upload.example.test") == "https://upload.example.test/clip.mp4", "legacy URL-only history recovered");
+    Check(Upload::BodyAttachmentUrl("https://upload.example.test/clip.mp4", "").empty(), "unconfigured history never auto-fetches");
+    const std::string host = "upload.example.test";
 	const std::string url = "https://" + host + "/slot/picture.png";
 	gloox::Message message(gloox::Message::Chat, gloox::JID("peer@example.test"), "Synthetic caption");
 	message.addExtension(new gloox::OOB(url, "Synthetic image", false));

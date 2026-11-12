@@ -19,6 +19,7 @@
 
 #include "../network/BookmarkManager.h"
 #include "../network/UploadManager.h"
+#include <set>
 #include "support/ConnectionLifecycle.h"
 
 #include <map>
@@ -191,6 +192,8 @@ private:
     std::deque<std::pair<std::string,std::string>> fAvatarQueue;
     void _SendQueuedText();
     void _FailQueuedText();
+	bool fUploadDiscovered = false;
+    std::set<std::string> fUploadDiscoveryCandidates; // Connection thread only.
 	std::mutex fUploadLock;
 	std::shared_ptr<Upload::Manager> fUploadManager;
     std::shared_ptr<Chat::ArchiveManager> fArchiveManager;

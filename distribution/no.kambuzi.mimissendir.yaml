@@ -15,22 +15,14 @@
   },
   "channels": {
     "beta": {
-      "version": "0.1.0~beta8-2",
+      "version": "0.1.0~beta9-1",
       "kind": "hpkg",
       "artifacts": {
         "x86_64": {
-          "url": "https://github.com/kambuziarendal/MimisSendir/releases/download/v0.1.0-beta.8/mimissendir-0.1.0.beta8-2-x86_64.hpkg",
-          "sha256": "4fe43db169932ee6b997d11ec25110a860e575c757fcf5bd35d67f5e226e9111"
+          "url": "https://github.com/kambuziarendal/MimisSendir/releases/download/v0.1.0-beta.9/mimissendir-0.1.0.beta9-1-x86_64.hpkg",
+          "sha256": "73d0fa90eeefe3e98ad4dc7f687fe7baa98172a6f955fff8729b75ac3d012fda"
         }
       }
     }
-  },
-  "screenshots": [
-    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/main/docs/screenshots/conversation-dark.png",
-    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/main/docs/screenshots/group-light.png"
-  ],
-  "categories": [
-    "network",
-    "chat"
-  ]
+  }
 }

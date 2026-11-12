@@ -7,6 +7,7 @@
 #include "Extensions.h"
 #include "jabber/BlabberSettings.h"
 #include "config/PrivateProfile.h"
+#include "UploadDiscovery.h"
 
 #include <Message.h>
 #include <OS.h>
@@ -27,9 +28,18 @@ namespace Upload {
 Profile Profile::Load()
 {
 	auto* settings = BlabberSettings::Instance();
-	return {settings->Data("upload-service").value_or(PrivateProfile::kUploadService),
+	Profile profile{settings->Data("upload-service").value_or(PrivateProfile::kUploadService),
 		settings->Data("upload-authority").value_or(PrivateProfile::kUploadAuthority),
 		settings->Data("upload-ca-file").value_or("")};
+    const auto account = gloox::JID(settings->Data("last-login").value_or("")).bare();
+    const auto discovered = settings->Data("upload-discovered-service").value_or("");
+    if (!account.empty() && account == settings->Data("upload-discovered-account").value_or("")
+        && DiscoveryHost(discovered, gloox::JID(account).server())) {
+        // Explicit configuration always wins, including a separate CDN host.
+        if (profile.service.empty()) profile.service = discovered;
+        if (profile.authority.empty() && profile.service == discovered) profile.authority = discovered;
+    }
+    return profile;
 }
 
 Manager::Manager(gloox::Client& client, Profile profile)
@@ -86,6 +96,14 @@ std::shared_ptr<Task> Manager::Queue(const std::string& path,
 		fQueue.push_back(task);
 	}
 	return task;
+}
+
+void Manager::Discover()
+{
+    const auto discovered = Profile::Load();
+    if (fProfile.service.empty()) fProfile.service = discovered.service;
+    if (fProfile.authority.empty() && fProfile.service == discovered.service)
+        fProfile.authority = discovered.authority;
 }
 
 void Manager::Connected()

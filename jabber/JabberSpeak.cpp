@@ -19,6 +19,7 @@
 #include <gloox/connectiontls.h>
 #include <gloox/dataformitem.h>
 #include <gloox/disco.h>
+#include "network/UploadDiscovery.h"
 #include <gloox/dns.h>
 #include <gloox/forward.h>
 #include <gloox/pubsubevent.h>
@@ -248,6 +249,8 @@ int32 JabberSpeak::_SpawnConnectionThread(void *obj)
 
 void JabberSpeak::_ConnectionThread()
 {
+    fUploadDiscoveryCandidates.clear();
+    fUploadDiscovered = false;
 	if (fConnectionState.StopRequested()) return;
 	std::string domain;
 	if (_curr_login == "") {
@@ -902,6 +905,20 @@ JabberSpeak::handleVCardResult(VCardContext,
 void
 JabberSpeak::handleDiscoInfo(const gloox::JID &from, const gloox::Disco::Info &info, int context)
 {
+    if (context == 3) {
+        if (fUploadDiscovered || !fUploadDiscoveryCandidates.erase(from.full())
+            || !info.hasFeature("urn:xmpp:http:upload:0")
+            || !Upload::DiscoveryHost(from.full(), _curr_login.server())) return;
+        auto* settings = BlabberSettings::Instance();
+        // Cache by account for offline history. Do not replace explicit settings.
+        if (settings->SaveChanges({{"upload-discovered-account", _curr_login.bare()},
+                {"upload-discovered-service", from.full()}})) {
+            fUploadDiscovered = true;
+            std::lock_guard<std::mutex> lock(fUploadLock);
+            if (fUploadManager) fUploadManager->Discover();
+        }
+        return;
+    }
 	if (context == kDiscoveryOwnJID)
 		BookmarkManager::Instance().Connect(info.hasFeature("urn:xmpp:bookmarks:1#compat"));
 	else if (context == kDiscoveryServer) {
@@ -928,13 +945,19 @@ JabberSpeak::handleDiscoInfo(const gloox::JID &from, const gloox::Disco::Info &i
 void
 JabberSpeak::handleDiscoItems(const gloox::JID &from, const gloox::Disco::Items &items, int context)
 {
-	(void)from;
+	if (from.full() != _curr_login.server()) return;
 	if (context != kDiscoveryServer) {
 		puts(__PRETTY_FUNCTION__);
 		return;
 	}
 
+    unsigned queried = 0;
 	for (auto item: items.items()) {
+        if (++queried > 32) break;
+        const auto service = item->jid().full();
+        if (Upload::DiscoveryHost(service, _curr_login.server())
+            && fUploadDiscoveryCandidates.insert(service).second)
+            GlooxClient()->disco()->getDiscoInfo(item->jid(), "", this, 3);
 		GlooxClient()->disco()->getDiscoInfo(item->jid(), "", this, kDiscoveryServer);
 	}
 }

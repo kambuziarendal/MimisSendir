@@ -133,3 +133,24 @@ Older `.renga-sticker` files can still be opened explicitly in MímisSendir. The
 Open **Settings → GIPHY**, paste your own key into the masked field, and choose **Save key**. The key is stored in Haiku KeyStore (`MimisSendir-Services`), not the XML profile. Only a non-secret key identifier is kept in settings. Saving a replacement stores it before changing the active selection, then removes the previous key. A denied save leaves the previous key working. **Remove key** deletes the selected key and disables online search. These two buttons apply immediately; the main Settings Save/Cancel buttons concern the other settings.
 
 The saved key is never displayed or copied into the edit field. Haiku may request permission to access KeyStore. GIPHY search uses verified HTTPS without redirects and sends the query and API key to GIPHY; neither is written to application logs. A profile backup alone does not contain the key. No shared key or legacy system-file fallback is included.
+
+## Images and video (beta 9)
+
+When upload fields are blank, the client discovers XEP-0363 services advertised by
+its authenticated account server. Automatic discovery accepts only a service in
+that account server's own DNS domain. The discovered host is cached per account
+for offline history. Explicit settings take precedence. If the HTTPS endpoint is
+a separate CDN or uses a nonstandard port, enter its exact host in Settings → Uploads.
+Neither arbitrary message links nor room members can add trusted download hosts.
+
+Old URL-only records from that host are recognized again when history is displayed.
+PNG, JPEG, GIF and WebP keep their inline previews. Video cards have **Play video**:
+the clip downloads on demand (maximum 50 MiB), then opens the local file in Haiku
+MediaPlayer. There is no autoplay or inline video playback. Supported codecs depend
+on the installed Haiku media add-ons; use Save file if MediaPlayer cannot decode a
+clip. Cancel stops the download, and failures remain retryable.
+
+Downloaded video stays in a private temporary directory while MediaPlayer is
+running, including when its chat is closed. Closing MímisSendir during playback
+can leave that temporary file until the system temporary directory is cleaned.
+No file is executed or automatically opened as another application type.

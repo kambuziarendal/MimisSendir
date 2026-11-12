@@ -56,6 +56,7 @@ public:
 		bool group, const BMessenger& target, std::shared_ptr<Giphy::Transfer> mediaLease = {});
 	// Connection thread only.
 	void Connected();
+    void Discover(); // Connection thread; only fills previously empty fields.
 	void Tick();
 	void Disconnected();
 	bool handleIq(const gloox::IQ&) override { return false; }

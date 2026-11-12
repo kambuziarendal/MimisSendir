@@ -14,6 +14,9 @@
 #include <File.h>
 #include <FindDirectory.h>
 #include <Path.h>
+#include <Entry.h>
+#include <Roster.h>
+#include <OS.h>
 #include <ScrollBar.h>
 #include <TranslationUtils.h>
 #include <algorithm>
@@ -27,7 +30,7 @@
 #include <unistd.h>
 
 namespace {
-constexpr uint32 kPoll = 'aPls', kGet = 'aGet', kSave = 'aSav', kCancel = 'aCan', kSaveRef = 'aRef', kMenu = 'aMnu', kPlay = 'aPly';
+constexpr uint32 kPoll = 'aPls', kGet = 'aGet', kSave = 'aSav', kCancel = 'aCan', kSaveRef = 'aRef', kMenu = 'aMnu', kPlay = 'aPly', kVideo = 'aVid';
 std::atomic<unsigned> sWorkers{0};
 std::atomic<unsigned> sCachedFiles{0};
 std::atomic<uint64> sNextToken{1};
@@ -51,6 +54,7 @@ struct AttachmentController::Job {
 	MediaPreview preview;
 	std::atomic_bool running{false}, cancelled{false}, saving{false};
 	std::atomic<uint64> bytes{0}, total{0};
+    std::atomic_bool playing{false};
 	bool ready = false, saved = false, cacheLease = false;
 	void ClearCache() {
 		file.reset();
@@ -60,13 +64,14 @@ struct AttachmentController::Job {
 		temporaryPath.clear(); temporaryDirectory.clear();
 		if (cacheLease) { --sCachedFiles; cacheLease = false; }
 	}
-	~Job() { ClearCache(); }
+	~Job() { if (!playing) ClearCache(); else if (cacheLease) --sCachedFiles; }
 };
 struct AttachmentController::Record {
 	std::shared_ptr<Job> job;
 	int32 paragraph;
 	Paragraph prefix;
 	bool wantsSave = false;
+    bool wantsPlay = false;
 	std::string status;
 	std::shared_ptr<BBitmap> displayed;
 	size_t frame = 0;
@@ -161,9 +166,9 @@ void AttachmentController::Render(Record& record)
         std::string label = Upload::IsPreviewFilename(record.job->url)
             ? (record.status.empty() ? "Image. Click for options." : record.status)
             : Upload::AttachmentDisplayName(record.job->url)
-                + "\n" + (!record.job->running && record.job->ready
+                + "\n" + (!record.status.empty() ? record.status : (!record.job->running && record.job->ready
                     ? (record.job->bytes.load()<1024 ? std::to_string(record.job->bytes.load()) + " bytes" : std::to_string(record.job->bytes.load()/1024) + " KiB") + " · Save or open…"
-                    : "Save or open…");
+                    : "Save or open…"));
         if(!Upload::IsPreviewFilename(record.job->url)) {
             CharacterStyle heading(normal);heading.SetBold(true);
             TextSpan title((Upload::AttachmentType(record.job->filename)+"\n").c_str(),heading);
@@ -175,6 +180,14 @@ void AttachmentController::Render(Record& record)
     content.SetClickMessage(options);
     content.SetCursor(BCursor(B_CURSOR_ID_FOLLOW_LINK));
     paragraph.Append(content);
+    if (Upload::IsVideoFilename(record.job->url)) {
+        TextSpan play(record.job->running ? "\nCancel download" : "\n▶ Play video", normal);
+        auto* action = new BMessage(record.job->running ? kCancel : kVideo);
+        action->AddUInt64("attachment-token", record.job->token);
+        play.SetClickMessage(action);
+        play.SetCursor(BCursor(B_CURSOR_ID_FOLLOW_LINK));
+        paragraph.Append(play);
+    }
     CopyReactions(fDocument->ParagraphAtIndex(record.paragraph),paragraph);
 	fDocument->SetParagraph(record.paragraph, paragraph);
 	fTimeline.Relayout();
@@ -221,11 +234,11 @@ void AttachmentController::Download(std::shared_ptr<Job> job, std::string author
 			BPath directory;
 			if (find_directory(B_SYSTEM_TEMP_DIRECTORY, &directory) != B_OK)
 				throw std::runtime_error("Could not locate temporary directory.");
-			std::string pattern = std::string(directory.Path()) + "/renga-attachment-XXXXXX";
+			std::string pattern = std::string(directory.Path()) + "/mimissendir-attachment-XXXXXX";
 			std::vector<char> name(pattern.begin(), pattern.end()); name.push_back(0);
 			if (!mkdtemp(name.data())) throw std::runtime_error("Could not create private attachment directory.");
 			job->temporaryDirectory = name.data();
-			job->temporaryPath = job->temporaryDirectory + "/download";
+			job->temporaryPath = job->temporaryDirectory + "/" + job->filename;
 			int fd = open(job->temporaryPath.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600);
 			if (fd < 0) throw std::runtime_error("Could not create private attachment file.");
 			FILE* file = fdopen(fd, "w+b");
@@ -247,6 +260,40 @@ void AttachmentController::Download(std::shared_ptr<Job> job, std::string author
 	}
 	if (!job->ready) job->ClearCache();
 	job->running = false;
+}
+
+void AttachmentController::PlayVideo(Record& record)
+{
+    auto job = record.job;
+    if (!job->ready || job->running || !Upload::IsVideoFilename(job->url)) return;
+    entry_ref ref;
+    if (get_ref_for_path(job->temporaryPath.c_str(), &ref) != B_OK) {
+        job->error = "Downloaded video is unavailable. Download it again.";
+        return;
+    }
+    job->error.clear();
+    BMessage open(B_REFS_RECEIVED);
+    open.AddRef("refs", &ref);
+    team_id player = -1;
+    const auto result = be_roster->Launch("application/x-vnd.Haiku-MediaPlayer", &open, &player);
+    if (result != B_OK && result != B_ALREADY_RUNNING) {
+        job->error = "Could not open MediaPlayer. Save the video and open it manually.";
+        return;
+    }
+    if (player < 0) player = be_roster->TeamFor("application/x-vnd.Haiku-MediaPlayer");
+    if (!job->playing.exchange(true)) {
+        // The player may keep using the file after its chat closes. Hold the
+        // private cache until the player exits, without touching any UI object.
+        try { std::thread([job, player] {
+            team_info info;
+            while (player >= 0 && get_team_info(player, &info) == B_OK) snooze(1000000);
+            job->playing = false;
+        }).detach(); }
+        catch (const std::system_error&) {
+            // Preserve the file rather than racing an already launched player.
+            job->error = "Video opened. Its temporary file is retained until restart.";
+        }
+    }
 }
 
 void AttachmentController::SavePanel(Record& record)
@@ -280,7 +327,7 @@ void AttachmentController::Poll()
     for(auto& record:fRecords) {
         auto job=record->job;
         const bool pinned=fSavePanel && fSavePanel->IsShowing() && fSavingToken==job->token;
-        if(!job->running && job->cacheLease && !record->wantsSave && !pinned
+        if(!job->running && !job->playing && job->cacheLease && !record->wantsSave && !record->wantsPlay && !pinned
             && !fTimeline.ParagraphVisible(record->paragraph)
             && (fTimeline.IsHidden() || sCachedFiles.load()>=8)) {
             record->displayed.reset();job->ClearCache();job->ready=false;
@@ -303,11 +350,12 @@ void AttachmentController::Poll()
 			status = job->saving ? "Saving…" : "Downloading " + std::to_string(job->bytes.load() / 1024) + " KiB…";
 		} else if (!job->error.empty()) {
 			status = job->error;
-			record->wantsSave = false;
+			record->wantsSave = false; record->wantsPlay = false;
 		} else if (job->ready) {
 			status = job->saved ? "Saved. The downloaded file was not opened automatically."
 				: (!job->preview.frames.empty() ? "" : Upload::IsPreviewFilename(job->url) ? "Image preview unavailable. Click for options." : "File downloaded. Click to save or open.");
 			if (record->wantsSave) { record->wantsSave = false; SavePanel(*record); }
+            if (record->wantsPlay) { record->wantsPlay = false; PlayVideo(*record); }
 		}
         bool redraw = status != record->status;
         if (!job->running && job->ready && !job->preview.frames.empty() && !record->displayed) {
@@ -339,7 +387,7 @@ void AttachmentController::Poll()
 bool AttachmentController::HandleMessage(const BMessage& message)
 {
 	if (message.what == kPoll) { Poll(); return true; }
-	if (message.what != kGet && message.what != kSave && message.what != kCancel && message.what != kSaveRef && message.what != kMenu && message.what != kPlay) return false;
+	if (message.what != kGet && message.what != kSave && message.what != kCancel && message.what != kSaveRef && message.what != kMenu && message.what != kPlay && message.what != kVideo) return false;
 	uint64 token = message.GetUInt64("attachment-token", 0);
 	for (auto& record : fRecords) {
 		auto job = record->job;
@@ -353,6 +401,7 @@ bool AttachmentController::HandleMessage(const BMessage& message)
             };
             if(job->running) add("Cancel",kCancel);
             else {
+                if (Upload::IsVideoFilename(job->url)) add("Play video", kVideo);
                 if(!job->ready) add("Download / retry",kGet);
                 add(Upload::IsPreviewFilename(job->url)?"Save image…":"Save file…",kSave);
                 if(job->preview.frames.size()>1)add(record->paused?"Play animation":"Pause animation",kPlay);
@@ -362,10 +411,14 @@ bool AttachmentController::HandleMessage(const BMessage& message)
             fTimeline.ConvertToScreen(&point);
             menu->SetAsyncAutoDestruct(true);menu->Go(point,true,true,true);
             return true;
+        } else if (message.what == kVideo) {
+            if (job->running || !Upload::IsVideoFilename(job->url)) return true;
+            if (job->ready) PlayVideo(*record);
+            else { record->wantsPlay = true; Start(*record); }
         } else if (message.what == kPlay) {
             record->paused=!record->paused;
         } else if (message.what == kCancel) {
-			job->cancelled = true; record->wantsSave = false;
+			job->cancelled = true; record->wantsSave = false; record->wantsPlay = false;
 		} else if (message.what == kGet) {
 			Start(*record);
 		} else if (message.what == kSave) {

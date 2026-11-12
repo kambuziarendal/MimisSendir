@@ -337,6 +337,7 @@ TalkView::~TalkView() {
 
 void TalkView::AttachedToWindow()
 {
+    fMediaAuthority = Upload::Profile::Load().authority;
 	TalkManager::Instance()->StartWatchingAll(this);
     Avatars::Watch(this);
     if(auto* avatar=dynamic_cast<ConversationAvatar*>(FindView("conversation-avatar")))avatar->SetIdentity(IsGroupChat()?_group_room:_session->target().bare());
@@ -471,7 +472,15 @@ struct Iterator
 
 
 void TalkView::MessageReceived(BMessage *msg) {
-    if(msg->what=='rVis'){UpdateReading();return;}
+    if(msg->what=='rVis'){
+        const auto authority = Upload::Profile::Load().authority;
+        if (authority != fMediaAuthority) {
+            fMediaAuthority = authority;
+            fAttachments.reset();
+            if (fHistory) RebuildHistory();
+        }
+        UpdateReading();return;
+    }
     if(msg->what=='dPol'){fTimeline->Invalidate();if(!IsHidden())SyncHistory();return;}
     if(msg->what=='rSet' && !fMessageInput->IsEditable()) { SetStatus("Cannot react until this conversation is ready.");return; }
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
@@ -708,7 +717,6 @@ void TalkView::MessageReceived(BMessage *msg) {
                     std::list<TextSpan> runs;
                     runs.emplace_back(msg->GetString("url", ""), CharacterStyle());
                     AddToTalk(OurRepresentation(), runs, LOCAL, true, 0, false, id, msg->GetString("url", ""));
-                    AddAttachment(msg->GetString("url", ""));
                     DeliveryStatus(id, Chat::Delivery::Unconfirmed);
                 }
 				if (state == "error")
@@ -1098,7 +1106,7 @@ void TalkView::MessageReceived(BMessage *msg) {
                 std::list<TextSpan> runs;
                 runs.emplace_back(msg->GetString("content", ""), CharacterStyle());
                 AddToTalk(OurRepresentation(), runs, LOCAL, true, 0, false, msg->GetString("reaction-id", id), msg->GetString("attachment", ""));
-                AddAttachment(msg->GetString("attachment", ""));
+
             }
             break;
         }
@@ -1132,10 +1140,10 @@ void TalkView::MessageReceived(BMessage *msg) {
                 : (item && !item->name().empty() ? item->name() : fFriendlyName);
             std::list<TextSpan> runs;
             runs.emplace_back(msg->GetString("content", ""), CharacterStyle());
-            if (AddToTalk(sender, runs, outgoing ? LOCAL : MAIN_RECIPIENT, true,
+            AddToTalk(sender, runs, outgoing ? LOCAL : MAIN_RECIPIENT, true,
                 msg->GetInt64("time", 0), msg->GetBool("archive", false),
-                msg->GetString("id", ""), msg->GetString("attachment", ""), "", "", msg->GetBool("markable", false)))
-                AddAttachment(msg->GetString("attachment", ""));
+                msg->GetString("id", ""), msg->GetString("attachment", ""), "", "", msg->GetBool("markable", false));
+
 			break;
 		}
 
@@ -1310,10 +1318,17 @@ ConsistentColor(const std::string& username)
 
 
 bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
-	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& attachment, const std::string& senderJid, const std::string& wireId, bool markable)
+	TalkView::user_type type, bool parseLinks, int64 timestamp, bool archive, const std::string& messageId, const std::string& suppliedAttachment, const std::string& senderJid, const std::string& wireId, bool markable)
 {
 	if (runs.empty()) return false;
     std::string rawBody;for(const auto& run:runs)rawBody+=run.Text().String();
+    if (!suppliedAttachment.empty() && rawBody.find(suppliedAttachment) == std::string::npos) {
+        rawBody += (rawBody.empty() ? "" : "\n") + suppliedAttachment;
+        runs.emplace_back(("\n" + suppliedAttachment).c_str(), CharacterStyle());
+    }
+    const auto authority = Upload::Profile::Load().authority;
+    const auto attachment = Upload::IsServiceUrl(suppliedAttachment, authority) ? suppliedAttachment
+        : Upload::BodyAttachmentUrl(rawBody, authority);
     if(!attachment.empty() && rawBody.find(attachment)==std::string::npos)rawBody+=(rawBody.empty()?"":"\n")+attachment;
     const std::string sender=!senderJid.empty()?senderJid:type==LOCAL?(IsGroupChat()?_group_room+"/"+_group_username:Avatars::Account()):
         (IsGroupChat()?(fReplayingHistory?"":_group_room+"/"+username):_session->target().bare());
@@ -1495,6 +1510,7 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
         fReactions->SetBatch(fReplayingHistory);
         fReactions->Add(messageId,fTimelineDocument->CountParagraphs()-1);
     }
+	AddAttachment(attachment);
 	if(fReplayingHistory)return true;
 	// FIXME relayout and invalidate only the newly added paragraph
 	fTimeline->Relayout();
@@ -1975,7 +1991,7 @@ void TalkView::RestoreHistory(bool reload) {
         std::list<TextSpan> runs;runs.emplace_back(m.GetString("body",""),CharacterStyle());
         AddToTalk(m.GetString("name",""),runs,m.GetBool("outgoing",false)?LOCAL:MAIN_RECIPIENT,true,
             m.GetInt64("time",0),true,m.GetString("id",""),m.GetString("attachment",""),m.GetString("sender",""),m.GetString("wire-id",""),m.GetBool("markable",false));
-        AddAttachment(m.GetString("attachment",""));
+
         if(fReactions)fReactions->Alias(m.GetString("id",""),m.GetString("alias",""));
     }
     fReplayingHistory=false;

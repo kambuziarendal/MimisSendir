@@ -9,6 +9,8 @@ std::string AttachmentBody(const gloox::Message& message);
 std::string AttachmentUrl(const gloox::Message& message, const std::string& authority);
 std::string AttachmentType(const std::string& filename);
 std::string AttachmentDisplayName(const std::string& url);
+std::string BodyAttachmentUrl(const std::string& body, const std::string& authority);
+bool IsVideoFilename(const std::string& url);
 bool IsPreviewFilename(const std::string& url);
 std::string AttachmentFilename(const std::string& url);
 std::string DisplayAttachmentBody(const std::string& body, const std::string& attachment);

@@ -166,6 +166,7 @@ private:
     std::string fLastMessageDay;
     BMessageRunner* fDatePoll=nullptr;
     BMessageRunner* fReadPoll=nullptr;
+    std::string fMediaAuthority;
     BButton* fJumpToLatest=nullptr;
     Chat::ReadTracker fReadTracker;
     uint64 fReadGeneration=0;
