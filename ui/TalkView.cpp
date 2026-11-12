@@ -1418,6 +1418,7 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
     if(type!=OTHER) {
         const time_t seconds=timestamp>0?timestamp/1000000:0;
         paragraphStyle.SetMessageTime(MessageFooter(messageId, timestamp));
+        paragraphStyle.SetDeliveryMark(MessageDeliveryMark(messageId));
         const auto day=ChatDate::Day(seconds);
         if(day!=fLastMessageDay) {
             ParagraphStyle separator;separator.SetDateDivider(seconds);separator.SetSpacingTop(12);separator.SetSpacingBottom(8);
@@ -1923,12 +1924,21 @@ void TalkView::DeliveryStatus(const std::string& id, Chat::Delivery state)
     if (fHistory && !fHistory->ReadLabel(id).empty()) return;
     const auto* message = fDeliveries.Find(id);
     if (!message) {
+        // Receipts may arrive after reopening a conversation. Correlate them
+        // against persisted outgoing history too, never the last visible text.
+        if (fHistory && state == Chat::Delivery::Delivered
+            && fHistory->Record(id).GetBool("outgoing", false)) {
+            fHistory->Delivery(id, static_cast<int32>(state));
+            RefreshMessageFooter(id);
+            return;
+        }
         if (state == Chat::Delivery::Failed)
             SetStatus("Send error with no matching message ID; delivery is unknown.");
         return;
     }
     if (state != Chat::Delivery::Queued && !fDeliveries.Update(id, state)) return;
     if(fHistory)fHistory->Delivery(id,static_cast<int32>(state));
+    RefreshMessageFooter(id);
     const bool media = Upload::IsServiceUrl(message->text, Upload::Profile::Load().authority);
     std::string text = std::string(Chat::Deliveries::Label(state)) + ": "
         + (media ? Upload::AttachmentFilename(message->text) : Conversations::Preview(message->text));
@@ -2044,7 +2054,7 @@ std::string TalkView::MessageFooter(const std::string& id, int64 timestamp) cons
     const std::string edit = record.GetString("edit-state", "");
     if (!edit.empty()) footer += edit == "unconfirmed" ? " · edited, unconfirmed" : " · edited";
     const auto read = fHistory->ReadLabel(id);
-    if (!read.empty()) footer += " · " + read;
+    if (!read.empty() && !_group_room.empty()) footer += " · " + read;
     return footer;
 }
 
@@ -2052,8 +2062,34 @@ void TalkView::ReceiveRead(const BMessage& message) {
     if (!fHistory) return;
     const std::string id = message.GetString("id", "");
     if (!fHistory->MarkRead(id, message.GetString("actor", ""))) return;
+    RefreshMessageFooter(id);
+    SetStatus(fHistory->ReadLabel(id));
+}
+
+ParagraphStyle::DeliveryMark TalkView::MessageDeliveryMark(const std::string& id) const {
+    using Mark = ParagraphStyle::DeliveryMark;
+    if (!fHistory) return Mark::None;
+    const auto record = fHistory->Record(id);
+    if (!record.GetBool("outgoing", false)) return Mark::None;
+    if (!fHistory->ReadLabel(id).empty()) return Mark::Read;
+    const auto* live = fDeliveries.Find(id);
+    // An old archive record with no transport evidence must not claim delivery.
+    const int state = live ? static_cast<int>(live->state) : record.GetInt32("delivery", -1);
+    switch (state) {
+        case static_cast<int>(Chat::Delivery::Queued): return Mark::Sending;
+        case static_cast<int>(Chat::Delivery::Unconfirmed):
+        case static_cast<int>(Chat::Delivery::Accepted): return Mark::Sent;
+        case static_cast<int>(Chat::Delivery::Delivered): return Mark::Delivered;
+        case static_cast<int>(Chat::Delivery::Failed): return Mark::Failed;
+        default: return Mark::None;
+    }
+}
+
+void TalkView::RefreshMessageFooter(const std::string& id) {
+    if (!fHistory) return;
     const auto record = fHistory->Record(id);
     const std::string original = record.GetString("id", "");
+    if (original.empty()) return;
     auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
     float low = 0, high = 0;
     bar->GetRange(&low, &high);
@@ -2064,11 +2100,11 @@ void TalkView::ReceiveRead(const BMessage& message) {
         auto target = fHistory->Record(style.ReactionId());
         if (original != target.GetString("id", "")) continue;
         style.SetMessageTime(MessageFooter(original, record.GetInt64("time", 0)));
+        style.SetDeliveryMark(MessageDeliveryMark(original));
         paragraph.SetStyle(style);
         fTimelineDocument->SetParagraph(i, paragraph);
     }
     fTimeline->Relayout();
     fTimeline->Invalidate();
     if (bottom) { bar->GetRange(&low, &high); bar->SetValue(high); }
-    SetStatus(fHistory->ReadLabel(id));
 }

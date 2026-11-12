@@ -17,7 +17,7 @@ ParagraphStyle::ParagraphStyle(const ParagraphStyle& other)
 	:
 	fMessageKind(other.fMessageKind),
     fAvatar(other.fAvatar),fAvatarName(other.fAvatarName),
-    fMessageTime(other.fMessageTime),
+    fMessageTime(other.fMessageTime), fDeliveryMark(other.fDeliveryMark),
     fDateDivider(other.fDateDivider),
     fReactionId(other.fReactionId),
     fMessageBody(other.fMessageBody), fMessageSender(other.fMessageSender), fMessageAuthor(other.fMessageAuthor),
@@ -37,7 +37,7 @@ ParagraphStyle::operator=(const ParagraphStyle& other)
 
 	fMessageKind = other.fMessageKind;
     fAvatar=other.fAvatar;fAvatarName=other.fAvatarName;
-    fMessageTime=other.fMessageTime;
+    fMessageTime=other.fMessageTime; fDeliveryMark=other.fDeliveryMark;
     fDateDivider=other.fDateDivider;
     fReactionId = other.fReactionId;
     fMessageBody=other.fMessageBody;fMessageSender=other.fMessageSender;fMessageAuthor=other.fMessageAuthor;
@@ -58,7 +58,7 @@ ParagraphStyle::operator==(const ParagraphStyle& other) const
 	if(fMessageBody!=other.fMessageBody || fMessageSender!=other.fMessageSender || fMessageAuthor!=other.fMessageAuthor)return false;
 	if(fReactionBadges!=other.fReactionBadges)return false;
 	if(fAvatar!=other.fAvatar||fAvatarName!=other.fAvatarName)return false;
-	if (fMessageTime != other.fMessageTime || fDateDivider != other.fDateDivider || fOwnReaction != other.fOwnReaction || fReactionId != other.fReactionId || fMessageKind != other.fMessageKind) return false;
+	if (fDeliveryMark != other.fDeliveryMark || fMessageTime != other.fMessageTime || fDateDivider != other.fDateDivider || fOwnReaction != other.fOwnReaction || fReactionId != other.fReactionId || fMessageKind != other.fMessageKind) return false;
 	if (fStyleData == other.fStyleData)
 		return true;
 

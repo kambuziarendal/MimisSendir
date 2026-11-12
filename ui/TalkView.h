@@ -172,6 +172,8 @@ private:
     void UpdateReading();
     std::string MessageFooter(const std::string& id, int64 timestamp) const;
     void ReceiveRead(const BMessage& message);
+    void RefreshMessageFooter(const std::string& id);
+    ParagraphStyle::DeliveryMark MessageDeliveryMark(const std::string& id) const;
 
 	BScrollView*		fMessageInputScroller;
 	BTextView*			fMessageInput;

@@ -302,8 +302,45 @@ ParagraphLayout::Draw(BView* view, const BPoint& offset)
 
     if(!fParagraphStyle.MessageTime().empty()) {
         BFont font(be_plain_font);font.SetSize(10);view->SetFont(&font);view->SetHighUIColor(B_DOCUMENT_TEXT_COLOR);
-        BString label(fParagraphStyle.MessageTime().c_str());font.TruncateString(&label,B_TRUNCATE_MIDDLE,TimeWidth());
-        const auto bounds=TimeBounds();view->DrawString(label.String(),BPoint(offset.x+bounds.right-font.StringWidth(label.String()),offset.y+Height()-8));
+        using Mark = ParagraphStyle::DeliveryMark;
+        const auto mark = fParagraphStyle.MessageDeliveryMark();
+        const float markWidth = mark == Mark::None ? 0 : 25;
+        BString label(fParagraphStyle.MessageTime().c_str());
+        font.TruncateString(&label, B_TRUNCATE_MIDDLE, std::max(0.f, TimeWidth()-markWidth));
+        const auto bounds=TimeBounds();
+        const float baseline=offset.y+Height()-8;
+        view->DrawString(label.String(), BPoint(offset.x+bounds.right-markWidth-font.StringWidth(label.String()),baseline));
+        if (mark != Mark::None) {
+            const float x=offset.x+bounds.right-20, y=baseline-5;
+            const auto document=ui_color(B_DOCUMENT_BACKGROUND_COLOR);
+            const bool dark=(document.red*299+document.green*587+document.blue*114)<128000;
+            view->SetHighColor(dark?rgb_color{138,155,168,255}:rgb_color{95,115,130,255});
+            view->SetPenSize(1.5f);
+            if (mark == Mark::Sending) {
+                view->StrokeEllipse(BRect(x+6,y-4,x+14,y+4));
+                view->StrokeLine(BPoint(x+10,y-3),BPoint(x+10,y));
+            } else if (mark == Mark::Failed) {
+                view->SetHighColor(dark?rgb_color{255,160,150,255}:rgb_color{170,40,35,255});
+                view->StrokeLine(BPoint(x+10,y-5),BPoint(x+10,y+1));
+                view->FillEllipse(BPoint(x+10,y+4),1,1);
+            } else {
+                auto check=[&](float left) {
+                    view->StrokeLine(BPoint(left,y),BPoint(left+3,y+3));
+                    view->StrokeLine(BPoint(left+3,y+3),BPoint(left+10,y-4));
+                };
+                const bool pair=mark==Mark::Delivered || mark==Mark::Read;
+                // Read is white in both themes. A dark keyline keeps it legible
+                // on the light bubble instead of changing its meaning/color.
+                if (mark==Mark::Read && !dark) {
+                    view->SetHighColor(70,90,105,255);view->SetPenSize(3.5f);
+                    check(x);check(x+7);
+                }
+                if (mark==Mark::Read) view->SetHighColor(255,255,255,255);
+                view->SetPenSize(1.5f);
+                check(x+(pair?0:7));if(pair)check(x+7);
+            }
+            view->SetPenSize(1);
+        }
     }
     auto badges=VisibleReactions();auto button=ReactionButton();button.OffsetBy(offset);
     float badgeX=button.left;
@@ -1127,7 +1164,9 @@ float ParagraphLayout::ReactionWidth() const {
     float width=0;for(const auto& badge:VisibleReactions())width+=BadgeWidth(badge);return width;
 }
 float ParagraphLayout::TimeWidth() const {
-    BFont font(be_plain_font);font.SetSize(10);return std::min(font.StringWidth(fParagraphStyle.MessageTime().c_str()),std::max(24.f,MessageWidth()-16));
+    BFont font(be_plain_font);font.SetSize(10);
+    const float markWidth=fParagraphStyle.MessageDeliveryMark()==ParagraphStyle::DeliveryMark::None?0:25;
+    return std::min(font.StringWidth(fParagraphStyle.MessageTime().c_str())+markWidth,std::max(24.f,MessageWidth()-16));
 }
 bool ParagraphLayout::FooterWraps() const {
     return ReactionWidth()>0 && TimeWidth()>0 && ReactionWidth()+TimeWidth()+7>MessageWidth()-16;

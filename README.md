@@ -30,9 +30,11 @@ Open [Signal Stickers](https://signalstickers.org/) in **WebPositive (Web+)**, t
 
 ## Early beta
 
-Beta 6 adds read receipts: outgoing messages show **Read** when a matching XEP-0333 displayed marker arrives. Group receipts show the number of reporting participants, never an assumed “everyone”. Incoming markable messages are acknowledged only after visible foreground dwell. Read status survives restart; delivery receipts and reactions are not treated as reads. Signal behavior depends on the bridge and the peer’s privacy settings. Native synthetic XMPP verification is separate from a live Signal test.
+Beta 6 adds read receipts: outgoing messages show a read indication when a matching XEP-0333 displayed marker arrives. Group receipts show the number of reporting participants, never an assumed “everyone”. Incoming markable messages are acknowledged only after visible foreground dwell. Read status survives restart; delivery receipts and reactions are not treated as reads. Signal behavior depends on the bridge and the peer’s privacy settings. Native synthetic XMPP verification is separate from a live Signal test.
 
-The newest client is **beta 6**. Earlier betas are retained for comparison and recovery, not recommended over beta 6. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Online GIPHY search is unavailable without a separately configured provider key; local GIFs work offline.
+Beta 7 uses Signal-style status checks beside each outgoing message: one muted check for sent, two muted checks for delivered, and two white checks for read. It also silences historical and duplicate group-mention notifications on startup, without silencing new mentions.
+
+The newest client is **beta 7**. Earlier betas are retained for comparison and recovery, not recommended over beta 7. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Online GIPHY search is unavailable without a separately configured provider key; local GIFs work offline.
 
 Tested on Haiku R1/beta6 hrev59866+79, x86_64. No hosted messaging account is included. Signal needs an existing phone account and a separate bridge; **Signal encryption terminates at that bridge**, not at this Haiku application. This is not an official Signal client. See [security and privacy](docs/public/SECURITY-PRIVACY.md).
 

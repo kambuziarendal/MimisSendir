@@ -378,7 +378,7 @@ void TalkManager::DeliverMessage(const gloox::Message& msg,
     }
 	if (kind == Chat::MessageKind::Ignore) return;
 	if (kind == Chat::MessageKind::Content && session && !fTalkMap.count(session)) {
-		CreateTalkSession(&session->target(), session, !outgoing);
+		CreateTalkSession(&session->target(), session, false);
 	}
 	try {
 		TalkView* window = fTalkMap.at(session);
@@ -877,9 +877,6 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
 			std::string mentionnedNick = uri.substr(uri.find('/') + 1);
 			BString nickname(BUrl::UrlDecode(mentionnedNick.c_str(), true));
 			if (nickname.String() == room->nick()) {
-				_MentionNotification(Conversations::FriendlyName(room->name() + "@" + room->service(),
-				BookmarkManager::Instance().GetBookmark((room->name() + "@" + room->service()).c_str())
-				? BookmarkManager::Instance().GetBookmark((room->name() + "@" + room->service()).c_str())->name : "", true), msg);
 				highlight = true;
 			}
 
@@ -911,11 +908,7 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
 			// Message did not include any references, check manually if the user nickname is
 			// contained in the text, until more clients support references and also for things
 			// that really can't (Biboumi)
-			// NOTE: This will erronously pop up for backlog messages aswell, can be
-			// improved once we have MAM
-			_MentionNotification(Conversations::FriendlyName(room->name() + "@" + room->service(),
-				BookmarkManager::Instance().GetBookmark((room->name() + "@" + room->service()).c_str())
-				? BookmarkManager::Instance().GetBookmark((room->name() + "@" + room->service()).c_str())->name : "", true), msg);
+
 			highlight = true;
 			run.SetForegroundColor(ConsistentColor(room->nick().c_str()));
 			run.SetBold(true);
@@ -969,18 +962,27 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
 		// FIXME since we just created the window, we may not be able to lock it immediately.
 		// AddToTalk should REALLY be done through a BMessage and not directly.
 		while(!window->LockLooper());
-		window->AddToTalk(group_username, runs, TalkView::MAIN_RECIPIENT, autoHyperlink, msg.when() ? Conversations::ArchiveTime(msg.when()->stamp()) : 0, msg.when() != nullptr, msg.id(), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
-		window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
-		window->UnlockLooper();
+        const bool accepted = window->AddToTalk(group_username, runs, TalkView::MAIN_RECIPIENT,
+            autoHyperlink, msg.when() ? Conversations::ArchiveTime(msg.when()->stamp()) : 0,
+            msg.when() != nullptr, msg.id(), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
+        if (accepted)
+            window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
+        window->UnlockLooper();
 
-		// Highlight the room in red to notify that a private message is waiting in there
-		BMessage message(kHighlightRosterItem);
-		message.AddString("room_jid", msg.from().bare().c_str());
-		message.AddString("who", msg.from().resource().c_str());
-		message.AddInt32("flags", BookmarkItem::NICKNAME_HIGHLIGHT);
-		//BlabberMainWindow::Instance()->PostMessage(&message);
-		window = fGroupMap.at(room);
-		BlabberMainWindow::Instance()->PostMessage(&message, window);
+        // Backlog and duplicate content must not resurrect a room highlight.
+        if (accepted && !msg.when()) {
+            if (highlight) {
+                const std::string jid = room->name() + "@" + room->service();
+                const auto* bookmark = BookmarkManager::Instance().GetBookmark(jid.c_str());
+                _MentionNotification(Conversations::FriendlyName(jid,
+                    bookmark ? bookmark->name : "", true), msg);
+            }
+            BMessage message(kHighlightRosterItem);
+            message.AddString("room_jid", msg.from().bare().c_str());
+            message.AddString("who", msg.from().resource().c_str());
+            message.AddInt32("flags", BookmarkItem::NICKNAME_HIGHLIGHT);
+            BlabberMainWindow::Instance()->PostMessage(&message, fGroupMap.at(room));
+        }
 		return;
 	}
 
@@ -995,12 +997,6 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
 			window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
 			window->UnlockLooper();
 		} else {
-			if (highlight == false) {
-				BMessage message(kHighlightRosterItem);
-				message.AddString("room_jid", msg.from().bare().c_str());
-				message.AddInt32("flags", BookmarkItem::ACTIVITY);
-				BlabberMainWindow::Instance()->PostMessage(&message);
-			}
 
 			// FIXME send a message to the view instead (locking and unlocking for every message is slow)
 			bool isLocked = window->LockLooper();
@@ -1009,10 +1005,28 @@ TalkManager::handleMUCMessage(gloox::MUCRoom *room,
 			// Do not append another attachment after suppressing our own echo.
             const auto type = group_username == window->GetGroupUsername()
                 ? TalkView::LOCAL : TalkView::MAIN_RECIPIENT;
-            if (window->AddToTalk(group_username, runs, type, autoHyperlink,
+            const bool accepted = window->AddToTalk(group_username, runs, type, autoHyperlink,
                 msg.when() ? Conversations::ArchiveTime(msg.when()->stamp()) : 0,
-                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority), msg.from().full(), msg.id(), msg.findExtension<Chat::Marker>(Chat::Marker::kExtension) && msg.findExtension<Chat::Marker>(Chat::Marker::kExtension)->markable()))
+                msg.when() != nullptr, Chat::ReactionId(msg,true), Upload::AttachmentUrl(msg, Upload::Profile::Load().authority), msg.from().full(), msg.id(), msg.findExtension<Chat::Marker>(Chat::Marker::kExtension) && msg.findExtension<Chat::Marker>(Chat::Marker::kExtension)->markable());
+            if (accepted)
                 window->AddAttachment(Upload::AttachmentUrl(msg, Upload::Profile::Load().authority));
+
+            // Notify only after the UI/history has accepted a genuinely new
+            // incoming message. Mention parsing alone cannot distinguish a
+            // replay on room join from live content, even with the same ID.
+            if (accepted && !msg.when() && type == TalkView::MAIN_RECIPIENT) {
+                if (highlight) {
+                    const std::string jid = room->name() + "@" + room->service();
+                    const auto* bookmark = BookmarkManager::Instance().GetBookmark(jid.c_str());
+                    _MentionNotification(Conversations::FriendlyName(jid,
+                        bookmark ? bookmark->name : "", true), msg);
+                } else {
+                    BMessage activity(kHighlightRosterItem);
+                    activity.AddString("room_jid", msg.from().bare().c_str());
+                    activity.AddInt32("flags", BookmarkItem::ACTIVITY);
+                    BlabberMainWindow::Instance()->PostMessage(&activity);
+                }
+            }
 
 			// May not be locked if the view is not added to a winow yet
 			if (isLocked)

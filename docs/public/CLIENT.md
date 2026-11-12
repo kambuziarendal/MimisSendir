@@ -81,6 +81,15 @@ Public builds have empty service defaults. Configure Signal domains and upload e
 
 Beta 4 adds right-click **Edit…** on your sent text messages and reactions in the timestamp footer. Beta 5 adds a jump-to-latest button beside the composer when scrolled up. Beta 6 shows **Read** beside the timestamp when the peer reports displaying that exact outgoing message. Groups show **Read by N participants** for received participant markers, not an “everyone” claim. A delivery receipt or reaction alone never means read. Read status persists locally across restart, including room-assigned ID aliases; server-archived displayed markers are applied when available. Receipts for unknown IDs or another conversation are ignored. Messages without a read receipt remain unconfirmed, not necessarily unread.
 
+Beta 7 replaces the direct-chat **Read** text with compact status checks beside the timestamp:
+
+- One muted check: submitted to XMPP or accepted by the bridge, not proof of Signal delivery.
+- Two muted checks: a matching delivery receipt was received.
+- Two white checks: a matching displayed/read marker was received. A dark outline keeps white checks visible in light themes.
+- A small clock: still queued. An exclamation mark: sending failed. Old history with no transport evidence has no guessed status.
+
+Group read counts remain visible so a read by one participant is not presented as everyone having read. Historical and duplicate group mentions no longer raise fresh system notifications or roster highlights on reconnect; genuinely new mentions still notify.
+
 Incoming messages with read-marker support are acknowledged after a short, stable visible dwell in the active conversation. Hidden, minimized, inactive or clipped content is not acknowledged just because it was received. Both sides and any Signal bridge must support forwarding the markers. Signal privacy settings may suppress receipts. Native synthetic verification does not establish live Signal behavior for every bridge, especially group receipts.
 
 ## Stickers and GIFs

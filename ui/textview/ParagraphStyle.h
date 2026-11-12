@@ -16,6 +16,7 @@ namespace Avatars { struct Image; }
 
 class ParagraphStyle {
 public:
+    enum class DeliveryMark { None, Sending, Sent, Delivered, Read, Failed };
     struct ReactionBadge {
         std::string emoji;
         size_t count=1;
@@ -58,6 +59,8 @@ public:
     void SetAvatar(std::shared_ptr<Avatars::Image> image,const std::string& name){ fAvatar=std::move(image);fAvatarName=name; }
     const std::shared_ptr<Avatars::Image>& Avatar()const{return fAvatar;}
     const std::string& AvatarName()const{return fAvatarName;}
+    void SetDeliveryMark(DeliveryMark value) { fDeliveryMark=value; }
+    DeliveryMark MessageDeliveryMark() const { return fDeliveryMark; }
     void SetMessageTime(const std::string& value) { fMessageTime=value; }
     const std::string& MessageTime() const { return fMessageTime; }
     void SetDateDivider(time_t value) { fDateDivider=value; }
@@ -79,6 +82,7 @@ private:
     std::shared_ptr<Avatars::Image> fAvatar;
     std::string fAvatarName;
     std::string fMessageTime;
+    DeliveryMark fDeliveryMark=DeliveryMark::None;
     time_t fDateDivider=-1;
     std::string fReactionId;
     std::string fMessageBody, fMessageSender, fMessageAuthor;

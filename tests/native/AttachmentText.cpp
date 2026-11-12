@@ -177,8 +177,8 @@ int main()
             Check(view.clicked=='rMnu',"selected corner emoji retains reaction target after resizing");
         }
     }
-    for(int direction:{1,2})for(float width:{180.f,260.f,900.f}) {
-        ParagraphStyle footer;footer.SetMessageKind(direction);footer.SetReactionId("footer-message");footer.SetMessageTime("23:12 · edited, unconfirmed");
+    for(int direction:{1,2})for(float width:{180.f,260.f,900.f}) for(auto mark:{ParagraphStyle::DeliveryMark::None, ParagraphStyle::DeliveryMark::Sent, ParagraphStyle::DeliveryMark::Delivered, ParagraphStyle::DeliveryMark::Read}) {
+        ParagraphStyle footer;footer.SetDeliveryMark(mark);footer.SetMessageKind(direction);footer.SetReactionId("footer-message");footer.SetMessageTime("23:12 · edited, unconfirmed");
         footer.SetReactionBadges({{"❤️",2,bitmap},{"👍",128,bitmap},{"😂",1,bitmap},{"🌞",4,bitmap}});
         Paragraph p(footer);p.Append(TextSpan("Footer remains below content",style));
         ParagraphLayout layout(p);layout.SetWidth(width);auto reactions=layout.ReactionButton(),clock=layout.TimeBounds(),bubble=layout.MessageBounds();
@@ -187,6 +187,9 @@ int main()
         float x1,y1,x2,y2;layout.GetTextBounds(p.Length()-1,x1,y1,x2,y2);
         Check(reactions.top>=y2 && clock.top>=y2,"reaction and clock hit regions never cover message text");
         Paragraph copy;CopyReactions(p,copy);Check(copy.Style().ReactionBadges()==footer.ReactionBadges(),"attachment redraw retains all reaction counts");
+        Check(copy.Style().MessageDeliveryMark()==mark,"attachment redraw retains sent/delivered/read marker");
+        ParagraphStyle assigned;assigned=footer;Check(assigned==footer,"delivery marker survives style assignment");
+        auto changed=footer;changed.SetDeliveryMark(ParagraphStyle::DeliveryMark::Failed);Check(changed!=footer,"delivery change invalidates cached paragraph style");
         TextDocumentRef doc(new TextDocument(),true);doc->Append(p);ClickProbe view;view.SetTextDocument(doc);view.SetInsets(0);view.SetSelectionEnabled(false);view.FrameResized(width,500);
         view.clicked=0;view.MouseDown(BPoint((reactions.left+reactions.right)/2,(reactions.top+reactions.bottom)/2));Check(view.clicked=='rMnu',"aggregate footer opens original message reaction menu");
         view.clicked=0;view.MouseDown(BPoint((clock.left+clock.right)/2,(clock.top+clock.bottom)/2));Check(view.clicked==0,"clock is not a reaction target");

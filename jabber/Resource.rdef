@@ -10,9 +10,9 @@ resource app_version {
 	minor  = 0,
 
 	variety = B_APPV_BETA,
-	internal = 5,
+	internal = 7,
 
-	short_info = "MímisSendir 0.1.0-beta.6",
+	short_info = "MímisSendir 0.1.0-beta.7",
 	long_info = "XMPP Instant Messaging Client"
 };
 
