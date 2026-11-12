@@ -1,0 +1,32 @@
+# Public rebuild: no local parent image, staged toolchain or live account needed.
+FROM codeberg.org/slidge/slidgnal:v0.5.1-amd64@sha256:ea4aaf58ad5eab65214ebfb43bfe4178b30baa90251c78f54b57e1cd79756982 AS build
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ libc6-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
+COPY install/toolchain.py /build/toolchain.py
+COPY prepare.py prepare-native-upload.py event_dispatch.py native_calls.py bounded_map.py /patches/
+COPY tests/attachment_upload_test.go /patches/tests/attachment_upload_test.go
+ENV PATH="/opt/go/bin:/venv/bin:$PATH" GOTOOLCHAIN=local GOPROXY=off CGO_ENABLED=1 LIBRARY_PATH=/src/slidgnal/vendor
+# Keep toolchain and compiler scratch out of persistent layers.
+RUN --mount=type=tmpfs,target=/opt/go --mount=type=tmpfs,target=/src --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/root/.cache \
+    /venv/bin/python /build/toolchain.py \
+ && /venv/bin/python /patches/prepare.py /venv/lib/python3.13/site-packages /overlay \
+ && /venv/bin/python /patches/prepare-native-upload.py /venv/lib/python3.13/site-packages/slidgnal /src/slidgnal \
+ && cd /src/slidgnal \
+ && go test -mod=vendor ./vendor/go.mau.fi/mautrix-signal/pkg/signalmeow -run TestAttachmentUpload -v \
+ && cd generated \
+ && go build -mod=vendor -buildmode=c-shared -o /out/_signal.cpython-313-x86_64-linux-gnu.so . \
+ && cp /src/slidgnal/vendor/go.mau.fi/mautrix-signal/pkg/signalmeow/attachments.go /out/attachments.go
+
+FROM codeberg.org/slidge/slidgnal:v0.5.1-amd64@sha256:ea4aaf58ad5eab65214ebfb43bfe4178b30baa90251c78f54b57e1cd79756982
+LABEL org.opencontainers.image.title="MímisSendir Signal bridge" \
+      org.opencontainers.image.source="https://github.com/kambuziarendal/MimisSendir" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later"
+COPY --from=build /overlay/ /venv/lib/python3.13/site-packages/
+COPY --from=build /out/_signal.cpython-313-x86_64-linux-gnu.so /venv/lib/python3.13/site-packages/slidgnal/generated/
+# Include the patched native source alongside the binary (AGPL); upstream vendor
+# dependencies and notices remain in the base image too.
+COPY --from=build /out/attachments.go /venv/lib/python3.13/site-packages/slidgnal/vendor/go.mau.fi/mautrix-signal/pkg/signalmeow/attachments.go
+COPY install/health.py install/launch.py /opt/mimissendir/
+RUN /venv/bin/python -c 'from slidgnal.generated import signal; from slidgnal.session import Session; assert hasattr(Session, "signal_call")'
+USER 10000:10000
+ENTRYPOINT ["/venv/bin/python", "/opt/mimissendir/launch.py"]

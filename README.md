@@ -42,7 +42,7 @@ From beta 8, MímisSendir has its own application identity, profile and password
 
 ## Plans
 
-- Make the self-hosted bridge easier to install, with a guided setup and a clean-install test.
+- Expand the guided bridge installer toward complete DNS/TLS and onboarding assistance.
 - Explore a **Matrix bridge via mautrix** as a backup to the current Signal/XMPP route. This is planned work, not an implemented fallback or an automatic failover feature.
 
 ## Development and credits

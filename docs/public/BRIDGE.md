@@ -1,8 +1,79 @@
 # Self-hosted Signal bridge
 
-This is an operator guide for a **new, isolated installation**, not a command to
-change an existing service. Templates are drafts with reserved example domains.
-A fresh installation of the complete stack has not been validated as a turnkey setup.
+## Guided Linux installation
+
+The guided installer creates a **new, separate Signal component** on a Linux amd64
+server with Docker Engine, Compose v2, Python 3.10+ and an existing local Prosody 13.
+It does not change an existing bridge, create DNS records, install TLS certificates,
+create XMPP accounts or register the Signal device automatically.
+
+Prerequisites: your own XMPP account, working client TLS and HTTPS uploads on that
+Prosody server. Keep external component TCP private on loopback. Allow about 3 GiB
+of free disk and 4 GiB RAM for the first native build. No paid service is required.
+
+Download the pinned installer source, then run the wizard:
+
+```sh
+git clone --depth 1 --branch bridge-v0.1.0-beta.1 https://github.com/kambuziarendal/MimisSendir.git
+cd MimisSendir
+sudo python3 bridge/install.py init /opt/mimissendir-bridge
+sudo cat /opt/mimissendir-bridge/NEXT-STEPS.txt
+```
+
+The wizard asks for the existing domain/account, component name, HTTPS upload
+hostname and local component port. It generates a random private component secret,
+a single-account allowlist, private state directory and reviewed-source snapshot.
+It refuses an existing destination. **It starts nothing and never edits Prosody.**
+The next-steps file explains the two generated Prosody snippets. Review and merge
+these into your existing configuration, preserving other hosts, modules and
+privileges. Install the supplied pinned `mod_privilege.lua` with its license;
+check Prosody configuration/certificates before reloading your own server.
+
+Then build once and start:
+
+```sh
+sudo python3 /opt/mimissendir-bridge/source/install.py build /opt/mimissendir-bridge
+sudo python3 /opt/mimissendir-bridge/source/install.py start /opt/mimissendir-bridge
+sudo python3 /opt/mimissendir-bridge/source/install.py doctor /opt/mimissendir-bridge
+```
+
+The build verifies upstream Python/native source and Go toolchain checksums, applies
+both patch sets, runs the encrypted-length upload regression, and records the exact
+local image ID. Start uses that ID, without pulling a changed tag. The first build
+needs Internet access and can take several minutes. Later starts reuse the image.
+`doctor` verifies the running image and an authenticated XMPP-component heartbeat,
+**not Signal pairing or end-to-end delivery**. Allow roughly a minute on first start.
+
+Use Gajim or another XMPP client supporting gateway registration/ad-hoc commands to
+register with the configured component and scan the linked-device QR from Signal
+on your phone. The Haiku onboarding UI is not yet verified for this complete flow.
+Never register or copy an already linked device into two simultaneously running
+bridges. Test messages and attachments with an agreed test contact before relying
+on the installation. The installer does not send messages itself.
+
+### Stop, backup and offline restore
+
+```sh
+sudo python3 /opt/mimissendir-bridge/source/install.py stop /opt/mimissendir-bridge
+sudo python3 /opt/mimissendir-bridge/source/install.py backup /opt/mimissendir-bridge /safe/private/bridge-backup.tar.gz
+sudo python3 bridge/install.py restore /safe/private/bridge-backup.tar.gz /opt/mimissendir-bridge-restored
+```
+
+Backup briefly stops an active component for a consistent snapshot, then resumes
+it, including after a recoverable archive-write failure. Use a new backup filename
+outside the installation directory. The archive is mode 0600 and contains private
+linked-device keys, message state and component credentials. Keep it private and
+encrypt it before off-host storage. Prosody/account/upload backups remain separate.
+Restore refuses an existing destination, rejects links/traversal, verifies the
+retained source snapshot and **does not start the restored copy**. Stop the original
+before starting the restored copy, including on another host. On the same Docker
+daemon the installer also rejects concurrent copies of the same installation.
+Rebuild from the retained source if restoring to a host without the recorded image.
+
+Keep the source snapshot and image with backups. No automatic upgrades or database
+rollback are attempted. A future bridge update needs a fresh compatibility check.
+The old templates below remain reference material, not alternative copy-paste
+instructions for an existing production server.
 
 ## Architecture and trust
 
@@ -31,10 +102,9 @@ The additional native upload fix passes the **encrypted payload length** to
 Signal's attachment upload form endpoint. The Python overlay alone is not the
 complete attachment-capable bridge release.
 
-The current native Dockerfile refers to a local image ID and a staged Go toolchain.
-It is historical build evidence, **not a portable public build recipe**. Before
-shipping a bridge image, publish an immutable source/toolchain manifest and a
-cleanly rebuildable combined Python/native image. See BUILD.md and LICENSES.md.
+`bridge/Dockerfile.combined` is the portable public build. It needs no private
+parent image, local toolchain or live account. `Dockerfile.native-upload` is retained
+as historical evidence and is not the public installer. See BUILD.md and LICENSES.md.
 
 ## Installation sequence
 
@@ -82,8 +152,8 @@ cleanly rebuildable combined Python/native image. See BUILD.md and LICENSES.md.
 XEP-0363 uploads need an HTTPS endpoint and appropriate authorization for both
 client and bridge. Privileged entity access is sensitive: pin the exact Prosody
 module and Slidge requirements, restrict it to the bridge JID, and verify stanza
-permissions rather than using blanket component privileges. This exact permission
-stanza is intentionally a release gate until tested from a fresh operator installation.
+permissions rather than using blanket component privileges. The generated privilege snippet uses the pinned Slidge/Prosody requirements; keep
+it restricted to the selected component and preserve other server privileges.
 
 Recommended starting limits are 50 MiB/file, 200 MiB/user/day, 512 MiB total and
 7-day upload/archive retention. Confirm actual module options and available disk

@@ -3,6 +3,10 @@
 Applies to the separate Linux bridge. Adapt paths to your reviewed deployment.
 Do not copy a live private deployment's config or data into a public example.
 
+For guided installations, use the scoped `build`, `start`, `stop`, `doctor`,
+`backup` and `restore` commands in [BRIDGE.md](BRIDGE.md). They never discover
+or alter an unrelated bridge.
+
 ## Routine checks
 
 Check component connectivity, linked-device state, worker/queue health, disk/quota,

@@ -1,0 +1,4 @@
+Prosody community mod_privilege, revision 5b9ddf14dcb1
+https://hg.prosody.im/prosody-modules/file/5b9ddf14dcb1/mod_privilege/mod_privilege.lua
+SHA256 1ec96fa10c48c457df0644f5840c6a0145f956474f187e2a8874b0911a650dd5
+MIT/X11, see COPYING. Unmodified upstream module.

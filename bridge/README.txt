@@ -13,6 +13,8 @@ no production credentials or state are included. Sending is never automatically
 replayed after an unknown outcome. Action admission is bounded and deadline-limited.
 A stuck native call retains its slot until it actually completes.
 
-These are source patches, not a published bridge image or turnkey installer.
+The guided installer is install.py; see ../docs/public/BRIDGE.md. It builds the
+combined image from public pinned inputs for a prepared local Prosody server.
+It does not configure DNS/TLS or pair the Signal device automatically.
 Upstream Slidge/Slidgnal and derived patches are AGPL-3.0-or-later. See LICENSE
 and ../docs/public/BRIDGE.md for architecture, setup limitations and source links.
