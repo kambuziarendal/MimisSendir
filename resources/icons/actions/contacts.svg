@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="blue" x2="0.3" y2="1"><stop stop-color="#a9e8ff"/><stop offset=".45" stop-color="#57b7ed"/><stop offset="1" stop-color="#2679b5"/></linearGradient>
+<linearGradient id="paper" x2=".2" y2="1"><stop stop-color="#fffef4"/><stop offset="1" stop-color="#d6d9cb"/></linearGradient>
+<linearGradient id="orange" x2=".8" y2="1"><stop stop-color="#ffe088"/><stop offset=".5" stop-color="#f8b64b"/><stop offset="1" stop-color="#d88a28"/></linearGradient>
+<linearGradient id="green" x2=".5" y2="1"><stop stop-color="#c9ee9d"/><stop offset="1" stop-color="#65a33e"/></linearGradient>
+<linearGradient id="skin" x2=".4" y2="1"><stop stop-color="#fff0ca"/><stop offset="1" stop-color="#d7ad79"/></linearGradient>
+<linearGradient id="button" x2="0" y2="1"><stop stop-color="#fafafa"/><stop offset="1" stop-color="#d9d9d9"/></linearGradient>
+
+<linearGradient id="steel" x2=".7" y2="1"><stop stop-color="#edf4f6"/><stop offset=".45" stop-color="#bacbd2"/><stop offset="1" stop-color="#738d9c"/></linearGradient>
+<linearGradient id="red" x2=".5" y2="1"><stop stop-color="#f4c7b7"/><stop offset="1" stop-color="#bd6c65"/></linearGradient>
+</defs>
+<path fill="#000" opacity=".14" d="M12 18L43 8 60 16 60 53 28 62 12 53Z"/>
+<g stroke="#4b3d28" stroke-width="2" stroke-linejoin="round">
+<path fill="#d2cbb7" d="M14 14L43 6 54 12 54 51 25 59 14 52Z"/>
+<path fill="url(#paper)" d="M20 17L49 9 54 12 54 48 25 56 20 53Z"/>
+<path fill="url(#orange)" d="M10 17L40 9 49 14 49 53 19 61 10 55Z"/>
+<path fill="#b77b2e" d="M10 17L19 22 19 61 10 55Z"/>
+<path fill="#f4e9c7" d="M25 26L43 21 43 44 25 49Z" stroke-width="1.4"/>
+<path fill="url(#blue)" stroke="#385266" stroke-width="1.4" d="M28 44L28 40Q29 36 34 36Q39 34 40 38L40 41Z"/>
+<ellipse cx="34" cy="31" rx="4" ry="5" fill="url(#skin)" stroke="#65533a" stroke-width="1.3"/>
+</g>
+<path d="M22 23L45 17M13 20L16 22 16 56" fill="none" stroke="#fff0b8" stroke-width="1.7"/>
+<g fill="#e9edf0" stroke="#485058" stroke-width="1.3"><path d="M8 27L15 31 15 35 8 31Z"/><path d="M8 43L15 47 15 51 8 47Z"/></g></svg>

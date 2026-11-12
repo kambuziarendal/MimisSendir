@@ -1,0 +1,9 @@
+build/
+.local-deps/
+.*.sw?
+compile_commands.json
+
+__pycache__/
+
+build-haiku/
+package-output/

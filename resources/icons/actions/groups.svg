@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="blue" x2="0.3" y2="1"><stop stop-color="#a9e8ff"/><stop offset=".45" stop-color="#57b7ed"/><stop offset="1" stop-color="#2679b5"/></linearGradient>
+<linearGradient id="paper" x2=".2" y2="1"><stop stop-color="#fffef4"/><stop offset="1" stop-color="#d6d9cb"/></linearGradient>
+<linearGradient id="orange" x2=".8" y2="1"><stop stop-color="#ffe088"/><stop offset=".5" stop-color="#f8b64b"/><stop offset="1" stop-color="#d88a28"/></linearGradient>
+<linearGradient id="green" x2=".5" y2="1"><stop stop-color="#c9ee9d"/><stop offset="1" stop-color="#65a33e"/></linearGradient>
+<linearGradient id="skin" x2=".4" y2="1"><stop stop-color="#fff0ca"/><stop offset="1" stop-color="#d7ad79"/></linearGradient>
+<linearGradient id="button" x2="0" y2="1"><stop stop-color="#fafafa"/><stop offset="1" stop-color="#d9d9d9"/></linearGradient>
+
+<linearGradient id="steel" x2=".7" y2="1"><stop stop-color="#edf4f6"/><stop offset=".45" stop-color="#bacbd2"/><stop offset="1" stop-color="#738d9c"/></linearGradient>
+<linearGradient id="red" x2=".5" y2="1"><stop stop-color="#f4c7b7"/><stop offset="1" stop-color="#bd6c65"/></linearGradient>
+</defs>
+<ellipse cx="34" cy="53" rx="27" ry="8" fill="#000" opacity=".13"/>
+<g stroke="#374135" stroke-width="1.8" stroke-linejoin="round">
+<path fill="url(#green)" d="M5 39Q5 29 17 29Q29 29 29 39L29 46Q17 52 5 45Z"/>
+<path fill="#5c8e38" d="M22 31Q29 33 29 39L29 46 23 48 23 37Z"/>
+<ellipse cx="17" cy="21" rx="7" ry="9" fill="url(#skin)"/>
+<path fill="#725332" d="M10 20Q8 11 17 11Q25 11 24 21L20 16 12 17Z" stroke-width="1.2"/>
+<path fill="url(#orange)" d="M36 35Q36 26 47 26Q58 26 58 37L58 44Q47 49 36 44Z"/>
+<path fill="#c68734" d="M52 28Q58 31 58 37L58 44 53 46 53 34Z"/>
+<ellipse cx="47" cy="18" rx="7" ry="9" fill="url(#skin)"/>
+<path fill="#53453d" d="M40 17Q38 8 47 8Q55 8 54 18L50 13 42 14Z" stroke-width="1.2"/>
+<path fill="url(#blue)" d="M18 49Q18 38 32 38Q46 38 46 49L46 57Q32 63 18 55Z"/>
+<path fill="#2b79a6" d="M38 40Q46 42 46 49L46 57 40 59 40 46Z"/>
+<ellipse cx="32" cy="29" rx="8" ry="10" fill="url(#skin)"/>
+<path fill="#5a4736" d="M24 28Q22 18 32 18Q42 18 40 29L36 23 27 24Z" stroke-width="1.2"/>
+</g>
+<path d="M21 49Q21 42 27 42M8 38Q8 33 12 33M39 35Q39 30 42 30" fill="none" stroke="#fff" stroke-width="2" opacity=".7"/></svg>

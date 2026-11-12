@@ -1,0 +1,36 @@
+{
+  "cicheto": 1,
+  "id": "no.kambuzi.mimissendir",
+  "name": "MímisSendir",
+  "summary": "Native Haiku XMPP messaging with optional self-hosted Signal bridging.",
+  "description": "Developed by Kambuzi EDB with AI-assisted programming using OpenAI Codex through OpenClaw. Based on Renga and its original contributors. A separate bridge and existing Signal account are required for Signal access. No hosted service is included. Signal encryption terminates at the bridge.",
+  "homepage": "https://github.com/kambuziarendal/MimisSendir",
+  "license": "GPL-3.0-or-later (gloox OpenSSL exception); MIT, OFL-1.1, Unicode-3.0 notices",
+  "author": {
+    "name": "Kambuzi EDB"
+  },
+  "packager": {
+    "name": "Kambuzi EDB",
+    "bacaro": "kambuzi-edb"
+  },
+  "channels": {
+    "beta": {
+      "version": "0.1.0~beta3-6",
+      "kind": "hpkg",
+      "artifacts": {
+        "x86_64": {
+          "url": "https://github.com/kambuziarendal/MimisSendir/releases/download/v0.1.0-beta.3/mimissendir-0.1.0~beta3-6-x86_64.hpkg",
+          "sha256": "8be9de3df1bdf79fd1871e819fc7d88375132e6be145a0b00cd8a72e55b35a34"
+        }
+      }
+    }
+  },
+  "screenshots": [
+    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/main/docs/screenshots/conversation-dark.png",
+    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/main/docs/screenshots/group-light.png"
+  ],
+  "categories": [
+    "network",
+    "chat"
+  ]
+}

@@ -1,0 +1,35 @@
+-- DRAFT for a dedicated Prosody 13 installation, not an include for a live server.
+-- Replace domains/certificates/secret; confirm module availability and privileges.
+admins = { "alice@chat.example.org" }
+allow_registration = false
+c2s_require_encryption = true
+c2s_ports = { 5222 }
+s2s_ports = {}
+component_interfaces = { "127.0.0.1" }
+component_ports = { 5347 }
+http_interfaces = { "127.0.0.1" }
+http_ports = { 5280 }
+https_ports = {}
+modules_enabled = {
+  "tls"; "saslauth"; "roster"; "disco"; "ping"; "carbons";
+  "pep"; "bookmarks"; "mam";
+}
+modules_disabled = { "s2s"; "register"; }
+authentication = "internal_hashed"
+archive_expires_after = "7d"
+log = { warn = "/var/log/prosody/prosody.log"; error = "/var/log/prosody/prosody.err"; }
+VirtualHost "chat.example.org"
+  ssl = {
+    key = "/etc/prosody/certs/chat.example.org.key";
+    certificate = "/etc/prosody/certs/chat.example.org.crt";
+  }
+Component "signal.chat.example.org"
+  component_secret = "REPLACE_WITH_RANDOM_COMPONENT_SECRET"
+  -- Restricted Slidge delegated stanza privileges require pinned-version acceptance.
+Component "upload.example.org" "http_file_share"
+  http_external_url = "https://upload.example.org/"
+  http_file_share_access = { "chat.example.org", "signal.chat.example.org" }
+  http_file_share_size_limit = 52428800
+  http_file_share_daily_quota = 209715200
+  http_file_share_global_quota = 536870912
+  http_file_share_expires_after = "7d"

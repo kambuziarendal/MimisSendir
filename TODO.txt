@@ -1,0 +1,70 @@
+- Rework bookmark2 code to remove its separate PubSub manager
+
+Delay between logon and getting MUC history? Is it my fault?
+No "writing" notifications
+Show avatars for MUC rooms in roster, how does that work?
+	Probably we don't want them in the roster, wastes too much space
+	or maybe very small 16x16px versions?
+Selection message in roster triggers a bit too easily (on right click for popup menu for example)
+Make roster headers not selectable
+Show nicknames in Roster (see "modern xmpp" recommendations on how to get them)
+Manage own nickname in MUC properly
+
+Rename "channel name" and default to nickname
+
+User registration / Captcha forms / Media
+=========================================
+
+- In case no form is received, handle legacy fields? Is there a server still needing that?
+- Display the OOB data when there is some (below the form? or above? display it and decide depending on what's in it)
+- Test with more servers? Is there an XMPP2020 compliant servers list?
+
+Cleanup
+=======
+
+Replace JRoster with gloox::RosterManager
+Replace UserID with gloox JID and RosterItem
+Move things out of Jabberspeak and TalkManager
+Move useful things outside of jabber/ directory
+Remove TalkManager, have each chat view register as a handler for its sessions/mucroom directly instead.
+Have separate constructors for group and normal TalkViews (maybe separate classes, even? some methods are exclusive).
+
+Inconsistent sizing of input field (because of send button size constraint?)
+
+New features
+============
+
+vcard / avatars
+	in talk window, see what would make a nice UI for that (focus on groupchats?)
+		Maybe not so great idea after all, it wastes some space
+		See how Discord does it (only on first message or something) but doesn't go too well on wide screens...
+	If we use avatars to identify users in groupchats, we probably need an identicon or something like it for users without an avatar, too
+		Something that looks like human portraits would be nice? Not a fan of traditional identicons
+			See David Revoy's set of bird and cat avatars, maybe we can use that?
+		But in MUC we don't get to know the bare JID of other people taking part, so we would do it on the nickname.
+		It would be nice if the avatar base color was based on the "predictable user color" also used for the nickname
+	Support for setting own vcard and/or avatar and showing it somewhere
+	Export/import people files from vcard data
+
+BNotification on all messages from single user
+
+MUC
+===
+
+Group MUCs by server in Roster instead of a single "Group Chats" list
+	XMPP is thinking about discord-like grouping of MUCs, maybe wait for that instead
+	Also group by IRC servers for biboumi MUCs
+
+- Discovering the conference server associated with the user's server
+- Listing existing rooms (in the associated conference server and in others)
+	May need result set management?
+- Invitations
+- Message to all
+- Set subject
+- Kick
+- Voice/unvoice
+- Getting extended room info (logs url, number if users) without joining
+- Warn user when entering a non-anonymous room
+
+- Error handling (entering member only room, ...)
+

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="blue" x2="0.3" y2="1"><stop stop-color="#a9e8ff"/><stop offset=".45" stop-color="#57b7ed"/><stop offset="1" stop-color="#2679b5"/></linearGradient>
+<linearGradient id="paper" x2=".2" y2="1"><stop stop-color="#fffef4"/><stop offset="1" stop-color="#d6d9cb"/></linearGradient>
+<linearGradient id="orange" x2=".8" y2="1"><stop stop-color="#ffe088"/><stop offset=".5" stop-color="#f8b64b"/><stop offset="1" stop-color="#d88a28"/></linearGradient>
+<linearGradient id="green" x2=".5" y2="1"><stop stop-color="#c9ee9d"/><stop offset="1" stop-color="#65a33e"/></linearGradient>
+<linearGradient id="skin" x2=".4" y2="1"><stop stop-color="#fff0ca"/><stop offset="1" stop-color="#d7ad79"/></linearGradient>
+<linearGradient id="button" x2="0" y2="1"><stop stop-color="#fafafa"/><stop offset="1" stop-color="#d9d9d9"/></linearGradient>
+
+<linearGradient id="steel" x2=".7" y2="1"><stop stop-color="#edf4f6"/><stop offset=".45" stop-color="#bacbd2"/><stop offset="1" stop-color="#738d9c"/></linearGradient>
+<linearGradient id="red" x2=".5" y2="1"><stop stop-color="#f4c7b7"/><stop offset="1" stop-color="#bd6c65"/></linearGradient>
+</defs>
+<polygon points="49.55,24.73 50.54,27.86 56.40,26.55 56.40,37.45 50.54,36.14 49.55,39.27 49.55,39.27 48.04,42.18 53.11,45.40 45.40,53.11 42.18,48.04 39.27,49.55 39.27,49.55 36.14,50.54 37.45,56.40 26.55,56.40 27.86,50.54 24.73,49.55 24.73,49.55 21.82,48.04 18.60,53.11 10.89,45.40 15.96,42.18 14.45,39.27 14.45,39.27 13.46,36.14 7.60,37.45 7.60,26.55 13.46,27.86 14.45,24.73 14.45,24.73 15.96,21.82 10.89,18.60 18.60,10.89 21.82,15.96 24.73,14.45 24.73,14.45 27.86,13.46 26.55,7.60 37.45,7.60 36.14,13.46 39.27,14.45 39.27,14.45 42.18,15.96 45.40,10.89 53.11,18.60 48.04,21.82 49.55,24.73" transform="translate(2 3)" fill="#000" opacity=".14"/>
+<polygon points="49.55,24.73 50.54,27.86 56.40,26.55 56.40,37.45 50.54,36.14 49.55,39.27 49.55,39.27 48.04,42.18 53.11,45.40 45.40,53.11 42.18,48.04 39.27,49.55 39.27,49.55 36.14,50.54 37.45,56.40 26.55,56.40 27.86,50.54 24.73,49.55 24.73,49.55 21.82,48.04 18.60,53.11 10.89,45.40 15.96,42.18 14.45,39.27 14.45,39.27 13.46,36.14 7.60,37.45 7.60,26.55 13.46,27.86 14.45,24.73 14.45,24.73 15.96,21.82 10.89,18.60 18.60,10.89 21.82,15.96 24.73,14.45 24.73,14.45 27.86,13.46 26.55,7.60 37.45,7.60 36.14,13.46 39.27,14.45 39.27,14.45 42.18,15.96 45.40,10.89 53.11,18.60 48.04,21.82 49.55,24.73" fill="url(#steel)" stroke="#354653" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="32" cy="32" r="13" fill="url(#orange)" stroke="#5c4b33" stroke-width="1.7"/>
+<circle cx="32" cy="32" r="7" fill="#f4f2e9" stroke="#5c4b33" stroke-width="2"/>
+<path d="M21 28Q23 20 31 20" fill="none" stroke="#fff5cb" stroke-width="2"/></svg>

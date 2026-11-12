@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="blue" x2="0.3" y2="1"><stop stop-color="#a9e8ff"/><stop offset=".45" stop-color="#57b7ed"/><stop offset="1" stop-color="#2679b5"/></linearGradient>
+<linearGradient id="paper" x2=".2" y2="1"><stop stop-color="#fffef4"/><stop offset="1" stop-color="#d6d9cb"/></linearGradient>
+<linearGradient id="orange" x2=".8" y2="1"><stop stop-color="#ffe088"/><stop offset=".5" stop-color="#f8b64b"/><stop offset="1" stop-color="#d88a28"/></linearGradient>
+<linearGradient id="green" x2=".5" y2="1"><stop stop-color="#c9ee9d"/><stop offset="1" stop-color="#65a33e"/></linearGradient>
+<linearGradient id="skin" x2=".4" y2="1"><stop stop-color="#fff0ca"/><stop offset="1" stop-color="#d7ad79"/></linearGradient>
+<linearGradient id="button" x2="0" y2="1"><stop stop-color="#fafafa"/><stop offset="1" stop-color="#d9d9d9"/></linearGradient>
+
+<linearGradient id="steel" x2=".7" y2="1"><stop stop-color="#edf4f6"/><stop offset=".45" stop-color="#bacbd2"/><stop offset="1" stop-color="#738d9c"/></linearGradient>
+<linearGradient id="red" x2=".5" y2="1"><stop stop-color="#f4c7b7"/><stop offset="1" stop-color="#bd6c65"/></linearGradient>
+</defs>
+<path d="M12 14L50 8 57 14 57 42 41 58 12 58Z" transform="translate(1 3)" fill="#000" opacity=".13"/>
+<g stroke="#4a4c38" stroke-width="2" stroke-linejoin="round">
+<path d="M10 12L49 6 55 12 55 40 39 56 10 56Z" fill="url(#paper)"/>
+<path d="M15 17L49 12 49 38 36 50 15 50Z" fill="url(#green)" stroke="none"/>
+<path d="M39 56L39 41 55 40Z" fill="#d6dfc4"/>
+<path d="M31 19L34 27 43 27 36 33 39 42 31 37 24 42 26 33 19 27 28 27Z" fill="url(#orange)" stroke-width="1.5"/>
+</g><path d="M18 19L45 15" stroke="#efffd6" stroke-width="1.7"/></svg>

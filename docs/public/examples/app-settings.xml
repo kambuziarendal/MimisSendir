@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<container>
+  <xmpp-connect-host>chat.example.org</xmpp-connect-host>
+  <xmpp-connect-port>5222</xmpp-connect-port>
+  <signal-bridge-jid>signal.chat.example.org</signal-bridge-jid>
+  <signal-contact-domain>signal.chat.example.org</signal-contact-domain>
+  <signal-group-domain>signal.chat.example.org</signal-group-domain>
+  <upload-service>upload.example.org</upload-service>
+  <upload-authority>upload.example.org</upload-authority>
+</container>

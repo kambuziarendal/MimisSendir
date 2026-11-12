@@ -1,0 +1,17 @@
+MímisSendir client dependency notices
+
+Client source retains Renga's MIT license. The linked executable also uses gloox
+1.0.28, distributed under GPL-3.0-or-later with an OpenSSL exception. The public
+package includes the GPL text, original gloox license and corresponding source
+links. Do not describe the executable as MIT-only.
+
+Shared dependencies are installed by Haiku's package manager: gloox, curl,
+OpenSSL, libcss, libwapcaplet, libiconv, giflib, libwebp and Haiku libraries.
+Their original packages supply their own notices. No shared libraries are copied
+into this HPKG. Exact build dependency versions are recorded in each release.
+
+Bundled NotoEmoji font: OFL-1.1, Google Fonts ofl/notoemoji. License retained.
+Embedded emoji imagery: NotoColorEmoji OFL and Unicode data license retained.
+Local GIF artwork retains Liberation font notices. GIPHY attribution artwork
+is a provider mark, not MIT artwork; no GIPHY API key is included.
+See THIRD-PARTY-NOTICES.md and docs/public/LICENSES.md in the source repository.

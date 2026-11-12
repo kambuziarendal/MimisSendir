@@ -1,0 +1,13 @@
+FROM sha256:55b28e72d0d456dac45dddd9a007dbc81c25b05c4bc6d5883413f9356b2d5707 AS build
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ libc6-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
+COPY go /opt/go
+COPY slidgnal /src/slidgnal
+ENV PATH="/opt/go/bin:/venv/bin:$PATH" GOTOOLCHAIN=local GOPROXY=off CGO_ENABLED=1 LIBRARY_PATH=/src/slidgnal/vendor
+WORKDIR /src/slidgnal
+RUN go test -mod=vendor ./vendor/go.mau.fi/mautrix-signal/pkg/signalmeow -run TestAttachmentUpload -v
+WORKDIR /src/slidgnal/generated
+RUN go build -mod=vendor -buildmode=c-shared -o /out/_signal.cpython-313-x86_64-linux-gnu.so .
+FROM sha256:55b28e72d0d456dac45dddd9a007dbc81c25b05c4bc6d5883413f9356b2d5707
+COPY --from=build /out/_signal.cpython-313-x86_64-linux-gnu.so /venv/lib/python3.13/site-packages/slidgnal/generated/
+RUN /venv/bin/python -c 'from slidgnal.generated import signal; print("Native Signal module loaded")'

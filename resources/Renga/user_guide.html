@@ -1,0 +1,191 @@
+<html>
+
+
+<head>
+<title>The Renga User Guide</title>
+</head>
+<style>
+:root {
+    color-scheme: light dark;
+}
+</style>
+<body>
+
+<a NAME="top"/>
+
+<p ALIGN=CENTER><center><img SRC="rapture-title.gif"></center><br>
+<h1 ALIGN=CENTER>Welcome to Renga!</h1>
+
+<p>XMPP is an open chat protocol that allows users to communicate
+with each other much like <a HREF="http://www.aol.com">AOL Instant Messenger</a> and <a HREF="http://www.mirabilis.com">ICQ</a>.</p>
+
+<p>Renga is the client that allows XMPP to be used on Haiku. This user guide describes how to use the client as well as the XMPP chat system. Here's what we'll be covering:
+<ol>
+	<li><a HREF="#getting">Getting Started on XMPP</a>
+	<li><a HREF="#logging">Logging In</a>
+	<li><a HREF="#im">I'm Logged In...So Now What?!</a>
+	<li><a HREF="#chatfeatures">Chat Features</a>
+	<li><a HREF="#groupchat">Group Chat</a>
+	<li><a HREF="#further">Further Exploration</a>
+</ol>
+
+<a NAME="getting"/>
+<h1 ALIGN=CENTER>Getting Started on XMPP</h1>
+<center><font SIZE=-2><a HREF="#top">top</a></font></center>
+
+<p>Renga is a Haiku-native client. It is based on Jabber4BeOS originally developed by <a HREF="http://raptureinvenice.com/trying-to-invent-the-ipad-back-in-2001/">Rapture In Venice</a>.
+Renga delivers the
+friendly user experience that some XMPP clients do not, much in the style of <a HREF="http://www.jabber.com">JabberIM</a>.
+Renga intends to be simple to use, with recycled GUI metaphors that make
+using this client as natural as any other you're used to.</p>
+
+<p>As such, let's look at Renga!</p>
+
+<a NAME="logging"/>
+<h1 ALIGN=CENTER>Logging In</h1>
+<a href="#top">top</a>
+
+<p>When you first run Renga, you will be presented with a window like this:</p>
+
+<div ALIGN=CENTER>
+	<img SRC="login-pane.png">
+	<img SRC="login-anon.png">
+	<img SRC="login-create.png">
+</div>
+
+<p>If you've used XMPP in the past then this should look familiar to you.  Just
+enter the login information you've always used.  If you haven't seen the nickname field
+before, this is used as a friendly name only for yourself in chat windows.  Nobody else will see this
+information so it's not critical.  As an expert, you'll probably want to check the Auto-login box as well.</p>
+
+<p>If you're new to XMPP, you can create an account. This is an important step in getting online.
+You'll want to decide on your official username! Here is what all the fields mean:</p>
+
+<ul>
+	<li><b>Nickname:</b> This is a friendly name for yourself. Other people will see it, and you can change it each time you connect.</li>
+	<li><b>Username:</b> This is the username you will be officially referred to with. You cannot change this once you picked one.</li>
+	<li><b>Password:</b> Your password.</li>
+	<li><b>Auto-login:</b> This is a handy option if you just want Renga to log you in with your
+		last entered username/password automatically.  It's quicker than entering in your
+		information all the time, but also less secure.  If you're on a single-user machine, this
+		is a recommended option.</li>
+</ul>
+
+<p>To create your account, use the "Create an account" button and follow the instructions. You will
+need to pick a server to host your account, or you can let Renga select one for you.</p>
+
+<p>If you don't want to create an account yet, you can also start chatting without one. This allows
+you to get started by just picking a nickname, but you won't be able to add contacts, and some chat
+rooms may not let you in (as a spam protection measure). Nonetheless, it allows you to make your
+first steps in the XMPP network.</p>
+
+<p>There are also some rules you should know about how Auto-login works in specific situations.  Here they are:</p>
+
+<ul>
+	<li><b>Normal login:</b> In the "normal" situation, running Renga will cause the login process to initiate for the last username/password you tried logging in with.</li>
+	<li><b>Failed login:</b> If Auto-login fails to log you in because your last username/password is, or is no longer, valid then the login screen will appear and allow you to correct any mistakes.</li>
+	<li><b>Multiple logins:</b> If you already have another instance of Renga running on the machine, Auto-login will not run for that second instance. Having two copies of the application running for the same account on the same machine would just be confusing.</li>
+	<li><b>Change login:</b> If you use Auto-login, but you want to change your username and log in under another address (stalkers again?), simply logout by selecting "Log Off" from the File menu. </li>
+</ul>
+
+<a NAME="im">
+<h1 ALIGN=CENTER>I'm Logged In...So Now What?!</h1>
+<center><font SIZE=-2><a HREF="#top">top</a></font></center>
+
+<p>Congratulations, you're logged in!  Your login window has now transformed and looks like:
+
+<p ALIGN=CENTER><img SRC="logged-in-with-friends.png"></p>
+
+<p>On the left is your buddy list, or "roster" as the XMPP group likes to call it.  This is where you'll see your friends and family, their online status and more.  If you just created your account, it will appear empty.  So let's fill it up!
+
+<p>There are two basic concepts when dealing with this list: <i>roster</i> and <i>presence</i>.  While many external chat systems
+treat these concepts as one entity, XMPP keeps them separate.  What you need to rememeber is that even if you add a friend to your list (<i>roster</i>), you don't automatically begin seeing their online status (<i>presence</i>). You need to ask for it.
+Let's illustrate this with an example.
+
+<p>Let's say you wish to add Rapture In Venice to your buddy list.  Don't worry, it's OK, I like to chat. :-)  The first thing you want to do is go to your Edit menu and select "Add New Buddy."
+You will see a screen like this:
+
+<p ALIGN=CENTER><img SRC="buddy-window.png">
+
+<p>The two important fields at this time are <b>Nickname</b> and <b>Jabber ID</b>.  The username is the Jabber ID of the user you want to add.  Mine is <i>rapture@jabber.org</i>, so type that one in.
+Next, you want to add a nickname, a casual name that tends to be less cryptic then the username.  This is up to you, so you can feel free to type in whatever information you'd like that will help you remember who this new buddy really is.  The usual value for me would be <a HREF="http://www.users.uswest.net/~jblanco">"Rapture In Venice"</a>.  Remember, it's totally up to you. 
+
+<p> Hit "Add My Buddy".
+
+<p>If everything worked well, you should now see your new entry under the Unknown list.  It should be blue.  If you see it there, congratulations!  I am now your buddy. :-)  I am now on your <i>roster</i>. But what good is a buddy when you don't know when they're online?  This is the concept of <i>presence</i>.
+
+<p>So you want to know when I'm online, right?  OK.  Right-click on my name in the list and in the Presence sub-menu select "Subscribe."  You've just sent a request to me asking for my presence.  What I will see in a moment is your request and I can either accept or decline.  Remember this screen because you might be seeing it again very shortly:
+
+<p ALIGN=CENTER><img SRC="presence-window.png">
+
+<p>If you don't get acceptance right away, don't worry.  It could be that the user (possibly me, as in this case) is not online.  If at some point the presence is accepted, you will be alerted so no need to stress!
+If you've gotten acceptance, you've probably already noticed that the user is now either in the online or offline list and their color is green (dark or light) or red.  Bet you can't guess what this means? ;-)
+Right!  The greens are for online, red is for offline.  The <b><font COLOR=005500>darker shade of green</font></b> means the user is online, but is either away from their computer or does not want to be distrubed. <b><font COLOR=00CC00>The lighter shade of green</font></b> signifies their open for chat. Usually, after being granted presence, the user is online because, well, how else could they have accepted your presence?
+
+<p>Great!  So the user is online.  Now what?  You want to chat is what!  Isn't that why you downloaded this program? :-)</p>
+
+<p>The chatting happens on the right part of the main window. At the bottom is a text input where you can send your messages. Above that is a list of previous messages for the current conversation. To chat with different people, simple select them on the left panel.</p>
+
+<p>If you want to send a long message with multiple lines, remember to use <b>Command-Enter</b> to insert a newline (since pressing <b>Enter</b> will send the current message to the other user). If you are not happy with that, you can exchange the two in the preferences window.</p>
+
+<a NAME="chatfeatures">
+<h1 ALIGN=CENTER>Chat Features</h1>
+<center><font SIZE=-2><a HREF="#top">top</a></font></center>
+
+<h2>Commands</h2>
+
+<p>Renga supports what's known as <i>"/me syntax"</i>.  This is when you want to type a message but want to make it as part of an action.  It's almost always used for humorous purposes. Here's an example:</p>
+
+<p ALIGN=CENTER><img SRC="me-syntax.png"><br><font SIZE=-2>- Note how /me makes my message an action -</font></p>
+
+<p>To deliver this kind of message, use this syntax:</p>
+
+	<ul><tt>/me <i>your action</i></tt></ul>
+	
+	<p>Here's exactly how I generated the previous example:</p>
+
+	<ul><tt>/me does a barrel roll</tt></ul>
+
+	<p>There are also other special commands: /nick allows to change your own nickname, and /part allows to leave a group chat with a goodbye message for the other people in there.</p>
+
+<a NAME="groupchat">
+<h1 ALIGN=CENTER>Group Chat</h1>
+<center><font SIZE=-2><a HREF="#top">top</a></font></center>
+
+<h2>Joining a chat</h2>
+
+<p>In addition to one on one chat, Renga also support group chat.  This is when more than two people can chat in the same window at the same time.  The advantages are clear:
+
+<ul>
+	<li><b>Group Meeting Place</b> - If you're on a development team or chatting with the rest of the UnReal club, group chat is a great place to get together!
+	<li><b>Privacy</b> - While <a HREF="http://www.lcscanada.com/beshare/index.html">BeShare</a> provides a great way to get together with other <font COLOR=RED>B</font><font COLOR=BLUE>e</font> community members, XMPP group chat lets you create your own rooms without being restricted to the one monolithic room that the server supports.
+	<li><b>Well Known Rooms</b> - XMPP houses some well known rooms, or rooms that people know about and attend.  The most popular is the group chat that the XMPP server developers partake in (see more info below).
+	<li><b>Platform Independent Chat</b> - XMPP group chat is not restricted to Haiku users. Anyone with any client on any OS can chat along with you!
+</ul>	
+
+<p>You can join or create any arbitrary room you want which is what you want if you want to organize a specific meeting place among friends. From the main window, select Talk->Start Group Chat.
+
+<img SRC="">
+
+<p>Where it says <b>Username</b>, type the nickname you'd like to use for the room. Be unique!  Then, where it says <b>Room Name</b>, give the desired name.  Room names are of the form <i>name-of-the-room@conference.jabber.org</i>. For example, join <i>renga@chat.jabberfr.org</i> to meet other Renga users.</p>
+
+<h2>Private messages</h2>
+
+<p>When you are in a group chat, you may want to send a message to just one person in the room. To do this, you can right click their nickname and select the corresponding option. People who have sent you private messages will appear in red in the group chat participant list.</p>
+
+<p>You can also use the same menu to see other chatters status message.</p>
+
+<a NAME="further">
+<h1 ALIGN=CENTER>Further Exploration</h1>
+<center><font SIZE=-2><a HREF="#top">top</a></font></center>
+
+<p>There are several other features that XMPP offers, as well as many nuances that are specific to Renga.  The big one being changing your own online status.  But I'll leave these all for you to explore! :-)  If it's not easy enough to figure out on your own, then Rapture In Venice has failed you as a developer.  So be confident!
+
+<p>If you run into problems (or just want to say hi), you can find the Renga developers on our XMPP chat room renga@chat.jabberfr.org.</p>
+
+<p>I hope this user manual is a friendly springboard to the world of XMPP and Renga.  Have fun!</p>
+
+</body>
+
+</html>
+

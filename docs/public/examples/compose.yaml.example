@@ -1,0 +1,22 @@
+# DRAFT: requires reviewed combined Python/native image, not the upstream base alone.
+services:
+  signal-bridge:
+    image: ${BRIDGE_IMAGE:?Set the reviewed immutable combined image reference}
+    network_mode: host
+    user: "10000:10000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    entrypoint: ["/venv/bin/python", "-m", "slidgnal"]
+    command: ["-c", "/etc/slidge/slidgnal.conf"]
+    volumes:
+      - ./slidgnal.conf:/etc/slidge/slidgnal.conf:ro
+      - ./state:/var/lib/slidge:rw
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "2"

@@ -1,0 +1,11 @@
+# Private completed config: owner/mode must allow container UID 10000 to read.
+# Never put real credentials into this repository.
+jid = signal.chat.example.org
+server = 127.0.0.1
+port = 5347
+secret = REPLACE_WITH_RANDOM_COMPONENT_SECRET
+home-dir = /var/lib/slidge
+user-jid-validator = ^alice@chat\.example\.org$
+upload-service = upload.example.org
+upload-url-prefix = https://upload.example.org/
+quiet = true
