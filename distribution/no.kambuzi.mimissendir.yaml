@@ -24,5 +24,9 @@
         }
       }
     }
-  }
+  },
+  "screenshots": [
+    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/4db508ae840ae20906a7b0e7b24109f3b322c43f/docs/screenshots/conversation-dark-beta11.png",
+    "https://raw.githubusercontent.com/kambuziarendal/MimisSendir/4db508ae840ae20906a7b0e7b24109f3b322c43f/docs/screenshots/group-light-beta11.png"
+  ]
 }
