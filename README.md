@@ -15,7 +15,6 @@ Real Haiku screenshots with fictional accounts, messages and artwork. No private
 - Persistent local history, attachments and previews.
 - Emoji, local GIFs and imported Signal sticker packs.
 - Message editing and reactions next to the timestamp.
-- Read acknowledgements for visible incoming messages in the active window.
 - A jump-to-latest button when you scroll up, and cached contact/group pictures.
 - Optional Signal conversations through a separately operated Slidgnal bridge.
 
@@ -24,6 +23,8 @@ Real Haiku screenshots with fictional accounts, messages and artwork. No private
 Open [Signal Stickers](https://signalstickers.org/) in **WebPositive (Web+)**, then click the pack's install button. **Do not use Firefox for that button on Haiku**: its custom-protocol handoff does not open the pack installer reliably. Review the pack in MímisSendir before importing it. This is a browser handoff limitation, not a problem with the sticker pack.
 
 ## Early beta
+
+Read receipts are not implemented as a working end-to-end feature in the current beta.
 
 The newest client is **beta 5**. Beta 3 and beta 4 are retained for comparison and recovery, not recommended over beta 5. Public builds have neutral server defaults and contain no API key or preconfigured account. Configure your own XMPP server in Settings. Online GIPHY search is unavailable without a separately configured provider key; local GIFs work offline.
 

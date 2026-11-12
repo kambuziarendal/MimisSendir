@@ -79,7 +79,7 @@ Public builds have empty service defaults. Configure Signal domains and upload e
 - Server history restoration depends on the server's archive and retention settings.
   A readiness/status indication is not proof of end-to-end Signal delivery.
 
-Beta 4 adds right-click **Edit…** on your sent text messages and reactions in the timestamp footer. Beta 5 adds visible-message read acknowledgements and a jump-to-latest button beside the composer when scrolled up. Read acknowledgement support depends on the server and bridge.
+Beta 4 adds right-click **Edit…** on your sent text messages and reactions in the timestamp footer. Beta 5 adds a jump-to-latest button beside the composer when scrolled up. Read receipts are not implemented as a working end-to-end feature in the current beta.
 
 ## Stickers and GIFs
 
