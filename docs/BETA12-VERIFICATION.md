@@ -33,11 +33,16 @@ Verification:
 - Dark-theme installed view inspected. No private account, Signal traffic or
   bridge deployment was involved.
 
-Limitations: hardware/GPU-specific flashing is not directly tested. An additional
-video smoke test could not qualify playback in this newly created VM: it has no
-virtual sound card, and the media connection timed out. It is not reported as a
-pass. No media/codec/playback code changed in beta12. Beta11's separate media
-acceptance remains documented in BETA11-VERIFICATION.md.
+Additional media check: the first run timed out because the recreated VM had no
+virtual sound card. After a clean shutdown, AC97 was added and
+`/dev/audio/hmulti/auich` verified. The same unchanged candidate then passed all
+30 inline-video checks, including silent and audio-bearing clips, preview,
+play/pause and cleanup. The failed environment run is retained in the local
+report rather than counted as a pass. No media/codec/playback code changed.
+
+Limitations: physical hardware/GPU-specific flashing and physical audio output
+are not directly tested. Beta11's separate media acceptance remains documented
+in BETA11-VERIFICATION.md.
 
 Recovery: reinstall retained beta11 HPKG; keep current settings/history. No data
 migration, database restoration or bridge change is needed.
