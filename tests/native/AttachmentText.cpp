@@ -15,6 +15,7 @@
 #include "ui/textview/ParagraphLayout.h"
 #include "ui/textview/TextDocument.h"
 #include "ui/textview/TextDocumentView.h"
+#include "ui/ConversationTimeline.h"
 
 class ClickProbe final : public TextDocumentView {
 public:
@@ -25,7 +26,7 @@ public:
 	}
 };
 
-class RedrawProbe final : public TextDocumentView {
+class RedrawProbe final : public ConversationTimeline {
 public:
     std::atomic<int> draws{0};
     void Draw(BRect update) override { ++draws; TextDocumentView::Draw(update); }
@@ -209,7 +210,7 @@ int main()
     }
     {
         auto* window = new BWindow(BRect(40,40,500,400), "Read visibility", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS);
-        auto* view = new TextDocumentView("read-visibility");
+        auto* view = new ConversationTimeline("read-visibility");
         TextDocumentRef doc(new TextDocument(),true);
         Paragraph p; p.Append(TextSpan("Visible incoming message",style)); doc->Append(p);
         for(int i=0;i<40;++i) doc->Append(p);
@@ -218,13 +219,32 @@ int main()
         BLayoutBuilder::Group<>(window,B_VERTICAL,0).Add(scroller);
         window->Show();snooze(150000);window->Lock();
         view->Relayout();
+        auto* jump = view->JumpButton();
+        Check(jump->Parent() == view && jump->IsHidden(), "jump starts hidden inside conversation viewport");
+        const BRect timelineFrame = view->Frame();
+        view->UpdateJumpButton(true);
+        window->UpdateIfNeeded();
+        Check(view->Frame() == timelineFrame, "showing overlay does not resize or move conversation");
+        Check(window->FindView(window->ConvertFromScreen(view->ConvertToScreen(jump->Frame().LeftTop() + BPoint(18,18)))) == jump,
+            "floating control receives clicks ahead of document");
+        const BRect jumpFrame = view->ConvertToParent(jump->Frame());
+        Check(timelineFrame.Contains(jumpFrame), "jump is entirely inside document viewport");
         Check(view->ParagraphReadVisible(0),"fully visible first message can be read");
         Check(!view->ParagraphReadVisible(40),"offscreen message is not read-visible");
         auto* bar=scroller->ScrollBar(B_VERTICAL);
         bar->SetValue(15);
         Check(!view->ParagraphReadVisible(0),"partly clipped message is not read-visible");
+        Check(view->ConvertToParent(jump->Frame()) == jumpFrame, "scrolling document keeps overlay fixed");
         float low,high;bar->GetRange(&low,&high);bar->SetValue(high);
         Check(view->ParagraphReadVisible(40),"bottom jump reveals newest message for reading");
+        jump->Hide();window->UpdateIfNeeded();
+        Check(view->Frame() == timelineFrame, "hiding overlay does not reflow conversation");
+        window->ResizeTo(320,280);window->Unlock();snooze(150000);window->Lock();
+        window->UpdateIfNeeded();jump->Show();
+        Check(view->Bounds().Contains(jump->Frame()), "overlay remains inside smaller conversation");
+        Check(std::abs(view->Bounds().right-jump->Frame().right-12)<1
+            && std::abs(view->Bounds().bottom-jump->Frame().bottom-12)<1,
+            "overlay follows viewport bottom right on resize");
         view->Hide();Check(!view->ParagraphReadVisible(40),"hidden timeline cannot mark read");
         window->Quit();
     }
@@ -236,7 +256,7 @@ int main()
         view->SetTextDocument(doc);view->SetEditingEnabled(false);
         BLayoutBuilder::Group<>(window,B_VERTICAL,0).Add(view);
         window->Show();snooze(200000);window->Lock();
-        view->MakeFocus(true);view->SetCaret(BPoint(20,10),false);
+        view->JumpButton()->Show();view->MakeFocus(true);view->SetCaret(BPoint(20,10),false);
         window->Unlock();snooze(200000);view->draws=0;snooze(1200000);
         Check(view->draws.load()==0,"readonly timeline stays idle after clicking text");
         window->Lock();view->SelectAll();window->Unlock();

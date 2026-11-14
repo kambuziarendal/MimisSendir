@@ -11,7 +11,7 @@
 #include <malloc.h>
 #include <sys/stat.h>
 #include "ui/ComposerButton.h"
-#include "ui/JumpToLatestButton.h"
+#include "ui/ConversationTimeline.h"
 #include "ui/ConversationAvatar.h"
 #include "ui/AvatarCache.h"
 #include "ui/ModalAlertFactory.h"
@@ -123,7 +123,9 @@ TalkView::TalkView(const gloox::JID *user, std::string group_room,
 		_status_view->SetMessage(new BMessage(kEditTopic));
 	}
 
-	fTimeline         = new TextDocumentView("Timeline");
+	auto* conversation = new ConversationTimeline();
+	fTimeline = conversation;
+	fJumpToLatest = conversation->JumpButton();
 	fTimelineDocument.SetTo(new TextDocument(), true);
 	fTimeline->SetTextDocument(fTimelineDocument);
 	fTimelineScroller = new BScrollView("Timeline Scroller", fTimeline, B_WILL_DRAW, false, true);
@@ -166,15 +168,6 @@ TalkView::TalkView(const gloox::JID *user, std::string group_room,
 	fAttach = new ComposerButton("Attach file", "Attach file", new BMessage('uSel'),ComposerButton::Attachment);
 	fAttach->SetToolTip(B_TRANSLATE("Attach file…"));
 	gv->AddChild(fAttach);
-    // Reserve a small slot so showing the jump control never moves the draft,
-    // send button or timeline. It is present only while older content is shown.
-    auto* jumpSlot = new BGroupView("latest-message-slot", B_VERTICAL, 0);
-    jumpSlot->SetExplicitMinSize(BSize(36, 36));
-    jumpSlot->SetExplicitMaxSize(BSize(36, 36));
-    fJumpToLatest = new JumpToLatestButton();
-    jumpSlot->AddChild(fJumpToLatest);
-    fJumpToLatest->Hide();
-    gv->AddChild(jumpSlot);
     gv->AddChild(new ComposerButton("send-message", B_TRANSLATE("Send"), new BMessage(JAB_CHAT_SENT),ComposerButton::Send));
 	gv->AddChild(fRaiseHand);
 	fRaiseHand->Hide();
@@ -2044,8 +2037,7 @@ void TalkView::UpdateReading()
     float low = 0, high = 0;
     if (bar) bar->GetRange(&low, &high);
     const bool moreBelow = bar && bar->Value() < high - 1;
-    if (moreBelow && fJumpToLatest->IsHidden()) fJumpToLatest->Show();
-    if (!moreBelow && !fJumpToLatest->IsHidden()) fJumpToLatest->Hide();
+    static_cast<ConversationTimeline*>(fTimeline)->UpdateJumpButton(moreBelow);
 
     auto* connection = JabberSpeak::Instance();
     const auto generation = connection->ConnectionGeneration();

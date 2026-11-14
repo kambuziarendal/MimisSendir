@@ -12,7 +12,7 @@ public:
     }
     void Draw(BRect) override {
         PushState();
-        SetHighUIColor(B_PANEL_BACKGROUND_COLOR); FillRect(Bounds());
+        SetHighUIColor(B_DOCUMENT_BACKGROUND_COLOR); FillRect(Bounds());
         BRect circle = Bounds(); circle.InsetBy(3, 3);
         SetHighUIColor(Value() == B_CONTROL_ON ? B_CONTROL_HIGHLIGHT_COLOR : B_CONTROL_BACKGROUND_COLOR);
         FillEllipse(circle);

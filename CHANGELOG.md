@@ -1,5 +1,11 @@
 # Beta releases
 
+## Beta 13
+
+- Float the jump-to-latest button inside the conversation, visible only when newer content is below the viewport.
+- Keep the button anchored while scrolling or resizing, without shifting the composer or reflowing messages.
+- Preserve drafts, read tracking and the beta 12 idle-redraw fix.
+
 ## Beta 6
 
 - New Mímir speaking-head icon in bronze and teal, with a speech-bubble beard.
