@@ -2112,12 +2112,9 @@ void TalkView::RefreshMessageFooter(const std::string& id) {
         auto style = paragraph.Style();
         auto target = fHistory->Record(style.ReactionId());
         if (original != target.GetString("id", "")) continue;
-        style.SetMessageTime(MessageFooter(original, record.GetInt64("time", 0)));
-        style.SetDeliveryMark(MessageDeliveryMark(original));
-        paragraph.SetStyle(style);
-        fTimelineDocument->SetParagraph(i, paragraph);
+        fTimeline->UpdateMessageFooter(i,
+            MessageFooter(original, record.GetInt64("time", 0)),
+            MessageDeliveryMark(original));
     }
-    fTimeline->Relayout();
-    fTimeline->Invalidate();
     if (bottom) { bar->GetRange(&low, &high); bar->SetValue(high); }
 }

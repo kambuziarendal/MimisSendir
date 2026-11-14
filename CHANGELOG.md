@@ -1,5 +1,11 @@
 # Beta releases
 
+## Beta 14
+
+- Repaint only the affected message footer for delivered/read receipts, instead of clearing the entire conversation. Ignore unchanged footer updates.
+- Restore drawing state after text selection and caret painting, preventing subtract/invert mode from contaminating later repaints.
+- Preserve wrapped group-reader labels, scroll anchoring and the existing idle-caret fix.
+
 ## Beta 13
 
 - Float the jump-to-latest button inside the conversation, visible only when newer content is below the viewport.

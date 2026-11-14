@@ -76,6 +76,8 @@ public:
 public:
     bool ParagraphVisible(int32 index);
     bool ParagraphReadVisible(int32 index);
+    void UpdateMessageFooter(int32 index, const std::string& text,
+        ParagraphStyle::DeliveryMark mark);
 
 private:
 			float				_TextLayoutWidth(float viewWidth) const;

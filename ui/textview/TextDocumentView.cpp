@@ -88,13 +88,19 @@ TextDocumentView::MessageReceived(BMessage* message)
 void
 TextDocumentView::Draw(BRect updateRect)
 {
+	// Selection and caret rendering use subtract/invert modes. Never let those
+	// modes affect the next background fill or a later media-frame repaint.
+	PushState();
+	SetDrawingMode(B_OP_COPY);
 	FillRect(updateRect, B_SOLID_LOW);
 
 	fTextDocumentLayout.SetWidth(_TextLayoutWidth(Bounds().Width()));
 	fTextDocumentLayout.Draw(this, BPoint(fInsetLeft, fInsetTop), updateRect);
 
-	if (!fSelectionEnabled || !fTextEditor.IsSet())
+	if (!fSelectionEnabled || !fTextEditor.IsSet()) {
+		PopState();
 		return;
+	}
 
 	bool isCaret = fTextEditor->SelectionLength() == 0;
 
@@ -104,6 +110,7 @@ TextDocumentView::Draw(BRect updateRect)
 	} else {
 		_DrawSelection();
 	}
+	PopState();
 }
 
 
@@ -489,6 +496,39 @@ TextDocumentView::Relayout()
 {
 	fTextDocumentLayout.Invalidate();
 	_UpdateScrollBars();
+}
+
+void
+TextDocumentView::UpdateMessageFooter(int32 index, const std::string& text,
+    ParagraphStyle::DeliveryMark mark)
+{
+    if (!fTextDocument.IsSet() || index < 0
+        || index >= fTextDocument->CountParagraphs()) return;
+    auto paragraph = fTextDocument->ParagraphAtIndex(index);
+    auto style = paragraph.Style();
+    if (style.MessageTime() == text && style.MessageDeliveryMark() == mark) return;
+
+    const BRect before = fTextDocumentLayout.ParagraphBounds(index);
+    style.SetMessageTime(text);
+    style.SetDeliveryMark(mark);
+    paragraph.SetStyle(style);
+    if (!fTextDocument->SetParagraph(index, paragraph)) return;
+    const BRect after = fTextDocumentLayout.ParagraphBounds(index);
+    BRect damage = before | after;
+    if (before.Height() == after.Height()) {
+        // Delivery/read marks and reaction placement share the footer row.
+        // Do not erase and repaint the conversation for a receipt.
+        damage.top = after.bottom - 26;
+    } else {
+        // A longer read label can wrap beside reactions. Repaint shifted
+        // messages too, and let the caller preserve the bottom anchor.
+        _UpdateScrollBars();
+        damage.bottom = std::max(damage.bottom, Bounds().bottom - fInsetTop);
+    }
+    damage.OffsetBy(fInsetLeft, fInsetTop);
+    damage.InsetBy(-4, -4); // Rounded bubble edges extend beyond layout bounds.
+    damage = damage & Bounds();
+    if (damage.IsValid()) Invalidate(damage);
 }
 
 

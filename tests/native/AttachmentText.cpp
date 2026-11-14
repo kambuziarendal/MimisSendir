@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <atomic>
+#include <vector>
+#include <cstring>
 #include "ui/textview/Paragraph.h"
 #include "ui/ReactionSpans.h"
 #include "ui/AvatarCache.h"
@@ -29,7 +31,8 @@ public:
 class RedrawProbe final : public ConversationTimeline {
 public:
     std::atomic<int> draws{0};
-    void Draw(BRect update) override { ++draws; TextDocumentView::Draw(update); }
+    BRect damage;
+    void Draw(BRect update) override { damage = damage.IsValid() ? damage | update : update; ++draws; TextDocumentView::Draw(update); }
 };
 
 static int checks;
@@ -247,6 +250,75 @@ int main()
             "overlay follows viewport bottom right on resize");
         view->Hide();Check(!view->ParagraphReadVisible(40),"hidden timeline cannot mark read");
         window->Quit();
+    }
+    {
+        auto* window = new BWindow(BRect(50,50,550,450), "Delivery redraw regression", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS);
+        auto* view = new RedrawProbe();
+        TextDocumentRef doc(new TextDocument(),true);
+        ParagraphStyle bubble; bubble.SetMessageKind(2);bubble.SetMessageTime("22:00");
+        bubble.SetDeliveryMark(ParagraphStyle::DeliveryMark::Sent);
+        bubble.SetReactionId("receipt");bubble.SetOwnReaction("+1");
+        Paragraph p(bubble);p.Append(TextSpan("Delivery must not erase earlier messages",style));
+        for(int i=0;i<4;++i)doc->Append(p);
+        view->SetTextDocument(doc);view->SetEditingEnabled(false);view->SetInsets(12);
+        auto* scroller=new BScrollView("delivery-scroll",view,0,false,true);
+        BLayoutBuilder::Group<>(window,B_VERTICAL,0).Add(scroller);
+        window->Show();snooze(200000);window->Lock();
+        view->draws=0;view->damage=BRect();
+        view->UpdateMessageFooter(2,"22:00",ParagraphStyle::DeliveryMark::Delivered);
+        window->Unlock();snooze(200000);window->Lock();
+        const bool updated=view->draws>0;
+        const bool localized=view->damage.IsValid() && view->damage.Height()<40
+            && view->damage.top>40 && view->damage.bottom<view->Bounds().bottom;
+        const bool delivered=doc->ParagraphAtIndex(2).Style().MessageDeliveryMark()==ParagraphStyle::DeliveryMark::Delivered;
+        view->draws=0;view->damage=BRect();
+        view->UpdateMessageFooter(2,"22:00",ParagraphStyle::DeliveryMark::Delivered);
+        view->UpdateMessageFooter(-1,"ignored",ParagraphStyle::DeliveryMark::Read);
+        window->Unlock();snooze(200000);window->Lock();
+        const bool duplicateIdle=view->draws==0;
+        view->UpdateMessageFooter(2,"22:00",ParagraphStyle::DeliveryMark::Read);
+        window->Unlock();snooze(200000);window->Lock();
+        const bool read=doc->ParagraphAtIndex(2).Style().MessageDeliveryMark()==ParagraphStyle::DeliveryMark::Read;
+        window->ResizeTo(500,160);window->Unlock();snooze(200000);window->Lock();
+        auto* bar=scroller->ScrollBar(B_VERTICAL);float low,beforeHigh,afterHigh;
+        bar->GetRange(&low,&beforeHigh);bar->SetValue(0);
+        view->damage=BRect();view->draws=0;
+        view->UpdateMessageFooter(0,"22:00 read by a very long list of group participants that must wrap beside reactions",ParagraphStyle::DeliveryMark::Read);
+        window->Unlock();snooze(200000);window->Lock();
+        bar->GetRange(&low,&afterHigh);
+        const bool wrapped=afterHigh>beforeHigh && view->damage.Height()>40 && bar->Value()==0;
+        view->damage=BRect();view->draws=0;
+        view->UpdateMessageFooter(3,"22:00",ParagraphStyle::DeliveryMark::Delivered);
+        window->Unlock();snooze(200000);window->Lock();
+        const bool offscreenIdle=view->draws==0;
+        window->Quit();
+        Check(wrapped,"wrapped group read footer updates range and shifted content without scrolling away");
+        Check(offscreenIdle,"offscreen receipt does not repaint visible messages");
+        Check(updated && delivered,"delivery receipt updates the intended message");
+        Check(localized,"delivery receipt repaints only the footer row, not the conversation");
+        Check(duplicateIdle,"duplicate and invalid receipts cause no redraw");
+        Check(read,"read receipt uses the same targeted update");
+    }
+    {
+        // A redraw of unchanged selected text must be pixel-idempotent.
+        // In particular, selection's subtract mode must not leak into the next
+        // background fill or accumulate black pixels on later media updates.
+        BBitmap canvas(BRect(0,0,399,199), B_BITMAP_ACCEPTS_VIEWS, B_RGB32);
+        Check(canvas.InitCheck()==B_OK && canvas.Lock(), "selection redraw canvas");
+        auto* view = new TextDocumentView("selection-pixels");
+        view->ResizeTo(399,199);canvas.AddChild(view);
+        TextDocumentRef doc(new TextDocument(),true);
+        Paragraph p; p.Append(TextSpan("Selected message remains readable",style));doc->Append(p);
+        view->SetTextDocument(doc);view->SetEditingEnabled(false);view->SelectAll();
+        view->SetLowColor(24,28,34);view->Draw(view->Bounds());view->Sync();
+        std::vector<uint8> first(static_cast<uint8*>(canvas.Bits()),
+            static_cast<uint8*>(canvas.Bits())+canvas.BitsLength());
+        view->Draw(view->Bounds());view->Sync();
+        const bool stable=std::memcmp(first.data(),canvas.Bits(),first.size())==0;
+        const bool copyMode=view->DrawingMode()==B_OP_COPY;
+        canvas.Unlock();
+        Check(stable, "unchanged selected conversation redraw has identical pixels");
+        Check(copyMode, "selection cannot leak subtract drawing mode");
     }
     {
         auto* window = new BWindow(BRect(50,50,550,350), "Caret redraw regression", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS);
