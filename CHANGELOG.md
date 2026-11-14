@@ -1,5 +1,11 @@
 # Beta releases
 
+## Beta 15
+
+- Prevent the live message view from being erased before a redraw. Compose each changed region offscreen and present the completed result in one operation.
+- Fix the blank conversation frames reproduced on sending, beyond beta 14's narrower receipt-only correction.
+- Keep scroll coordinates, selection, caret, theme changes and localized receipt updates intact. Buffer allocation is bounded by the visible viewport, not history size.
+
 ## Beta 14
 
 - Repaint only the affected message footer for delivered/read receipts, instead of clearing the entire conversation. Ignore unchanged footer updates.

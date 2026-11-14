@@ -14,6 +14,7 @@
 #include "TextEditor.h"
 
 
+class BBitmap;
 class BClipboard;
 class BMessageRunner;
 
@@ -86,12 +87,16 @@ private:
 
 			void				_ShowCaret(bool show);
 			void				_BlinkCaret();
-			void				_DrawCaret(int32 textOffset);
-			void				_DrawSelection();
+			void				_DrawCaret(BView* target, int32 textOffset);
+			void				_DrawSelection(BView* target);
 			void				_GetSelectionShape(BShape& shape,
 									int32 start, int32 end);
 
 private:
+    void _DrawContent(BView* target, BRect updateRect);
+    BBitmap* fDrawBuffer = nullptr;
+    BView* fBufferView = nullptr;
+
 			TextDocumentRef		fTextDocument;
 			TextDocumentLayout	fTextDocumentLayout;
 			TextEditorRef		fTextEditor;

@@ -300,6 +300,42 @@ int main()
         Check(read,"read receipt uses the same targeted update");
     }
     {
+        BBitmap canvas(BRect(0,0,399,199), B_BITMAP_ACCEPTS_VIEWS, B_RGB32);
+        Check(canvas.InitCheck()==B_OK && canvas.Lock(), "buffered timeline canvas");
+        auto* view = new TextDocumentView("buffered-pixels");
+        view->ResizeTo(399,199);canvas.AddChild(view);
+        TextDocumentRef doc(new TextDocument(),true);
+        ParagraphStyle bubble; bubble.SetMessageKind(2);bubble.SetMessageTime("23:00");
+        bubble.SetDeliveryMark(ParagraphStyle::DeliveryMark::Sent);
+        Paragraph p(bubble);p.Append(TextSpan("Sent message remains visible while scrolling",style));
+        for(int i=0;i<20;++i)doc->Append(p);
+        view->SetTextDocument(doc);view->SetEditingEnabled(false);view->SetInsets(12);
+        const bool transparent=view->ViewColor()==B_TRANSPARENT_COLOR;
+        for (const rgb_color& background : {rgb_color{24,28,34,255},rgb_color{242,244,247,255}}) {
+            view->SetLowColor(background);
+            for (float offset : {0.0f,137.0f,650.0f}) {
+                view->ScrollTo(0,offset);
+                view->Draw(view->Bounds());view->Sync();
+                std::vector<uint8> full(static_cast<uint8*>(canvas.Bits()),
+                    static_cast<uint8*>(canvas.Bits())+canvas.BitsLength());
+                // Expose one narrow damage strip, then a full redraw. Pixels
+                // must match at nonzero document offsets and in both palettes.
+                BRect strip=view->Bounds();strip.top+=37;strip.bottom=strip.top+31;
+                view->Draw(strip);view->Sync();
+                Check(std::memcmp(full.data(),canvas.Bits(),full.size())==0,
+                    "buffered partial repaint matches full viewport at scroll offset");
+                const auto* bytes=static_cast<const uint8*>(canvas.Bits());
+                Check(bytes[0]==background.blue && bytes[1]==background.green && bytes[2]==background.red,
+                    "buffered viewport retains explicit background color");
+            }
+        }
+        view->ResizeTo(299,149);view->ScrollTo(0,211);view->Draw(view->Bounds());view->Sync();
+        const bool resized=view->Bounds().Width()==299;
+        canvas.Unlock();
+        Check(transparent,"app_server cannot clear the live timeline before its buffered draw");
+        Check(resized,"buffered viewport survives resizing while scrolled");
+    }
+    {
         // A redraw of unchanged selected text must be pixel-idempotent.
         // In particular, selection's subtract mode must not leak into the next
         // background fill or accumulate black pixels on later media updates.

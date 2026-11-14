@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <stdio.h>
 
+#include <Bitmap.h>
+#include <Region.h>
 #include <Clipboard.h>
 #include <Cursor.h>
 #include <MessageRunner.h>
@@ -41,8 +43,9 @@ TextDocumentView::TextDocumentView(const char* name)
 	// Set default TextEditor
 	SetTextEditor(TextEditorRef(new(std::nothrow) TextEditor(), true));
 
-	SetViewUIColor(B_DOCUMENT_BACKGROUND_COLOR);
-	SetLowUIColor(ViewUIColor());
+	// app_server must not erase the live conversation before Draw runs.
+	SetViewColor(B_TRANSPARENT_COLOR);
+	SetLowUIColor(B_DOCUMENT_BACKGROUND_COLOR);
 }
 
 
@@ -51,6 +54,7 @@ TextDocumentView::~TextDocumentView()
 	// Don't forget to remove listeners
 	SetTextEditor(TextEditorRef());
 	delete fCaretBlinker;
+    delete fDrawBuffer;
 }
 
 
@@ -88,31 +92,80 @@ TextDocumentView::MessageReceived(BMessage* message)
 void
 TextDocumentView::Draw(BRect updateRect)
 {
-	// Selection and caret rendering use subtract/invert modes. Never let those
-	// modes affect the next background fill or a later media-frame repaint.
-	PushState();
-	SetDrawingMode(B_OP_COPY);
-	FillRect(updateRect, B_SOLID_LOW);
+    const BRect bounds = Bounds();
+    updateRect = updateRect & bounds;
+    if (!updateRect.IsValid()) return;
+    const BRect bufferBounds(0, 0, bounds.IntegerWidth(), bounds.IntegerHeight());
+    if (fDrawBuffer && fDrawBuffer->Bounds() != bufferBounds) {
+        delete fDrawBuffer;
+        fDrawBuffer = nullptr;
+        fBufferView = nullptr;
+    }
+    // Keep one viewport-sized surface, never a bitmap of the whole history.
+    const double pixels = (bufferBounds.Width() + 1) * (bufferBounds.Height() + 1);
+    if (!fDrawBuffer && pixels > 0 && pixels <= 16 * 1024 * 1024) {
+        auto* buffer = new(std::nothrow) BBitmap(bufferBounds,
+            B_BITMAP_ACCEPTS_VIEWS, B_RGB32);
+        if (buffer && buffer->InitCheck() == B_OK && buffer->Lock()) {
+            auto* view = new(std::nothrow) BView(bufferBounds, "timeline-buffer",
+                B_FOLLOW_NONE, B_WILL_DRAW);
+            if (view) {
+                view->SetViewColor(B_TRANSPARENT_COLOR);
+                buffer->AddChild(view);
+                fDrawBuffer = buffer;
+                fBufferView = view;
+            }
+            buffer->Unlock();
+        }
+        if (!fDrawBuffer) delete buffer;
+    }
+    if (!fDrawBuffer || !fDrawBuffer->Lock()) {
+        _DrawContent(this, updateRect);
+        return;
+    }
+    fBufferView->PushState();
+    fBufferView->SetOrigin(-bounds.left, -bounds.top);
+    BRegion clip(updateRect);
+    fBufferView->ConstrainClippingRegion(&clip);
+    BFont font;
+    GetFont(&font);
+    fBufferView->SetFont(&font);
+    fBufferView->SetLowColor(LowColor());
+    fBufferView->SetHighColor(HighColor());
+    _DrawContent(fBufferView, updateRect);
+    fBufferView->PopState();
+    fBufferView->Sync();
+    fDrawBuffer->Unlock();
 
-	fTextDocumentLayout.SetWidth(_TextLayoutWidth(Bounds().Width()));
-	fTextDocumentLayout.Draw(this, BPoint(fInsetLeft, fInsetTop), updateRect);
-
-	if (!fSelectionEnabled || !fTextEditor.IsSet()) {
-		PopState();
-		return;
-	}
-
-	bool isCaret = fTextEditor->SelectionLength() == 0;
-
-	if (isCaret) {
-		if (fShowCaret && fTextEditor->IsEditingEnabled())
-			_DrawCaret(fTextEditor->CaretOffset());
-	} else {
-		_DrawSelection();
-	}
-	PopState();
+    // Present the completed region in one operation. Neither background erasure
+    // nor partial bubble/text drawing is exposed while sending or scrolling.
+    BRect source(updateRect);
+    source.OffsetBy(-bounds.left, -bounds.top);
+    PushState();
+    SetDrawingMode(B_OP_COPY);
+    DrawBitmap(fDrawBuffer, source, updateRect);
+    PopState();
 }
 
+
+void
+TextDocumentView::_DrawContent(BView* target, BRect updateRect)
+{
+    target->PushState();
+    target->SetDrawingMode(B_OP_COPY);
+    target->FillRect(updateRect, B_SOLID_LOW);
+    fTextDocumentLayout.SetWidth(_TextLayoutWidth(Bounds().Width()));
+    fTextDocumentLayout.Draw(target, BPoint(fInsetLeft, fInsetTop), updateRect);
+    if (fSelectionEnabled && fTextEditor.IsSet()) {
+        if (fTextEditor->SelectionLength() == 0) {
+            if (fShowCaret && fTextEditor->IsEditingEnabled())
+                _DrawCaret(target, fTextEditor->CaretOffset());
+        } else {
+            _DrawSelection(target);
+        }
+    }
+    target->PopState();
+}
 
 void
 TextDocumentView::AttachedToWindow()
@@ -617,7 +670,7 @@ TextDocumentView::_BlinkCaret()
 
 
 void
-TextDocumentView::_DrawCaret(int32 textOffset)
+TextDocumentView::_DrawCaret(BView* target, int32 textOffset)
 {
 	if (!IsFocus() || Window() == NULL || !Window()->IsActive())
 		return;
@@ -633,13 +686,13 @@ TextDocumentView::_DrawCaret(int32 textOffset)
 	fCaretBounds = BRect(x1, y1, x2, y2);
 	fCaretBounds.OffsetBy(fInsetLeft, fInsetTop);
 
-	SetDrawingMode(B_OP_INVERT);
-	FillRect(fCaretBounds);
+	target->SetDrawingMode(B_OP_INVERT);
+	target->FillRect(fCaretBounds);
 }
 
 
 void
-TextDocumentView::_DrawSelection()
+TextDocumentView::_DrawSelection(BView* target)
 {
 	int32 start;
 	int32 end;
@@ -648,18 +701,18 @@ TextDocumentView::_DrawSelection()
 	BShape shape;
 	_GetSelectionShape(shape, start, end);
 
-	SetDrawingMode(B_OP_SUBTRACT);
+	target->SetDrawingMode(B_OP_SUBTRACT);
 
-	SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
-	MovePenTo(fInsetLeft - 0.5f, fInsetTop - 0.5f);
+	target->SetLineMode(B_ROUND_CAP, B_ROUND_JOIN);
+	target->MovePenTo(fInsetLeft - 0.5f, fInsetTop - 0.5f);
 
 	if (IsFocus() && Window() != NULL && Window()->IsActive()) {
-		SetHighColor(30, 30, 30);
-		FillShape(&shape);
+		target->SetHighColor(30, 30, 30);
+		target->FillShape(&shape);
 	}
 
-	SetHighColor(40, 40, 40);
-	StrokeShape(&shape);
+	target->SetHighColor(40, 40, 40);
+	target->StrokeShape(&shape);
 }
 
 
