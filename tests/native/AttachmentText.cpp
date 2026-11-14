@@ -8,6 +8,7 @@
 #include <Message.h>
 #include <cstdio>
 #include <cstdlib>
+#include <atomic>
 #include "ui/textview/Paragraph.h"
 #include "ui/ReactionSpans.h"
 #include "ui/AvatarCache.h"
@@ -22,6 +23,12 @@ public:
 		clicked = message ? message->what : 0;
 		return B_OK;
 	}
+};
+
+class RedrawProbe final : public TextDocumentView {
+public:
+    std::atomic<int> draws{0};
+    void Draw(BRect update) override { ++draws; TextDocumentView::Draw(update); }
 };
 
 static int checks;
@@ -220,6 +227,28 @@ int main()
         Check(view->ParagraphReadVisible(40),"bottom jump reveals newest message for reading");
         view->Hide();Check(!view->ParagraphReadVisible(40),"hidden timeline cannot mark read");
         window->Quit();
+    }
+    {
+        auto* window = new BWindow(BRect(50,50,550,350), "Caret redraw regression", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS);
+        auto* view = new RedrawProbe();
+        TextDocumentRef doc(new TextDocument(),true);
+        Paragraph p; p.Append(TextSpan("Readonly conversation selection",style));doc->Append(p);
+        view->SetTextDocument(doc);view->SetEditingEnabled(false);
+        BLayoutBuilder::Group<>(window,B_VERTICAL,0).Add(view);
+        window->Show();snooze(200000);window->Lock();
+        view->MakeFocus(true);view->SetCaret(BPoint(20,10),false);
+        window->Unlock();snooze(200000);view->draws=0;snooze(1200000);
+        Check(view->draws.load()==0,"readonly timeline stays idle after clicking text");
+        window->Lock();view->SelectAll();window->Unlock();
+        snooze(200000);view->draws=0;snooze(1200000);
+        Check(view->draws.load()==0,"readonly selection does not start a caret repaint timer");
+        window->Lock();view->SetEditingEnabled(true);view->SetCaret(BPoint(20,10),false);window->Unlock();
+        snooze(200000);view->draws=0;snooze(1200000);
+        Check(view->draws.load()>0,"editable focused text retains blinking caret");
+        window->Lock();view->SetEditingEnabled(false);window->Unlock();
+        snooze(200000);view->draws=0;snooze(1200000);
+        Check(view->draws.load()==0,"disabling editing cancels pending caret timer");
+        window->Lock();window->Quit();
     }
 	printf("%d native attachment text checks passed\n", checks);
 }

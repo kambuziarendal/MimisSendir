@@ -126,7 +126,7 @@ TextDocumentView::FrameResized(float width, float height)
 void
 TextDocumentView::WindowActivated(bool active)
 {
-	(void)active;
+    _ShowCaret(active && IsFocus());
 	Invalidate();
 }
 
@@ -137,6 +137,7 @@ TextDocumentView::MakeFocus(bool focus)
 	if (focus != IsFocus())
 		Invalidate();
 	BView::MakeFocus(focus);
+    _ShowCaret(focus);
 }
 
 
@@ -336,6 +337,7 @@ TextDocumentView::SetEditingEnabled(bool enabled)
 {
 	if (fTextEditor.IsSet())
 		fTextEditor->SetEditingEnabled(enabled);
+    _ShowCaret(enabled);
 }
 
 
@@ -400,6 +402,7 @@ TextDocumentView::SetSelectionEnabled(bool enabled)
 	if (fSelectionEnabled == enabled)
 		return;
 	fSelectionEnabled = enabled;
+    _ShowCaret(false);
 	Invalidate();
 	// TODO: Deselect
 }
@@ -541,19 +544,25 @@ TextDocumentView::_UpdateScrollBars()
 void
 TextDocumentView::_ShowCaret(bool show)
 {
-	fShowCaret = show;
-	if (fCaretBounds.IsValid())
-		Invalidate(fCaretBounds);
-	else
-		Invalidate();
-	// Cancel previous blinker, increment blink token so we only accept
-	// the message from the blinker we just created
-	fCaretBlinkToken++;
-	BMessage message(MSG_BLINK_CARET);
-	message.AddInt32("token", fCaretBlinkToken);
-	delete fCaretBlinker;
-	fCaretBlinker = new BMessageRunner(BMessenger(this), &message,
-		500000, 1);
+    // Read-only timelines still support selection, but must never run an
+    // invisible caret timer. Without a caret rectangle, that timer repainted
+    // the entire conversation every 500 ms after a click or Select All.
+    const bool canBlink = fSelectionEnabled && fTextEditor.IsSet()
+        && fTextEditor->IsEditingEnabled() && fTextEditor->SelectionLength() == 0
+        && IsFocus() && Window() != nullptr && Window()->IsActive();
+    const bool visible = canBlink && show;
+    if (visible != fShowCaret) {
+        fShowCaret = visible;
+        if (fCaretBounds.IsValid()) Invalidate(fCaretBounds);
+        else if (visible) Invalidate();
+    }
+    ++fCaretBlinkToken;
+    delete fCaretBlinker;
+    fCaretBlinker = nullptr;
+    if (!canBlink) return;
+    BMessage message(MSG_BLINK_CARET);
+    message.AddInt32("token", fCaretBlinkToken);
+    fCaretBlinker = new BMessageRunner(BMessenger(this), &message, 500000, 1);
 }	
 
 

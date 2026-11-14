@@ -341,7 +341,7 @@ void TalkView::AttachedToWindow()
 	TalkManager::Instance()->StartWatchingAll(this);
     Avatars::Watch(this);
     if(auto* avatar=dynamic_cast<ConversationAvatar*>(FindView("conversation-avatar")))avatar->SetIdentity(IsGroupChat()?_group_room:_session->target().bare());
-    if(!fDatePoll){BMessage tick('dPol');fDatePoll=new BMessageRunner(BMessenger(this),tick,60000000);}
+    if(!fDatePoll){fCalendarDay=ChatDate::Day(time(nullptr));BMessage tick('dPol');fDatePoll=new BMessageRunner(BMessenger(this),tick,60000000);}
     if(!fHistory) {
         BPath root;find_directory(B_USER_SETTINGS_DIRECTORY,&root);root.Append("MimisSendir");
         fHistory=std::make_unique<ChatHistory>(root.Path(),JabberSpeak::Instance()->GlooxClient()->jid().bare(),
@@ -481,7 +481,12 @@ void TalkView::MessageReceived(BMessage *msg) {
         }
         UpdateReading();return;
     }
-    if(msg->what=='dPol'){fTimeline->Invalidate();if(!IsHidden())SyncHistory();return;}
+    if(msg->what=='dPol') {
+        const auto day=ChatDate::Day(time(nullptr));
+        if(day!=fCalendarDay) { fCalendarDay=day; fTimeline->Invalidate(); }
+        if(!IsHidden())SyncHistory();
+        return;
+    }
     if(msg->what=='rSet' && !fMessageInput->IsEditable()) { SetStatus("Cannot react until this conversation is ready.");return; }
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
         msg->RemoveName("name");msg->AddString("name",fFriendlyName.c_str());

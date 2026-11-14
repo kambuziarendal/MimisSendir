@@ -164,6 +164,7 @@ private:
 	TextDocumentView*	fTimeline;
 	TextDocumentRef		fTimelineDocument;
     std::string fLastMessageDay;
+    std::string fCalendarDay;
     BMessageRunner* fDatePoll=nullptr;
     BMessageRunner* fReadPoll=nullptr;
     std::string fMediaAuthority;

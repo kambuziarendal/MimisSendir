@@ -14,7 +14,7 @@ if [ ! -f "$binary" ] || [ ! -x "$binary" ]; then
 fi
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 stage="$output/package-stage"
-artifact="$output/mimissendir-0.1.0~beta11-1-x86_64.hpkg"
+artifact="$output/mimissendir-0.1.0~beta12-1-x86_64.hpkg"
 if [ -e "$stage" ] || [ -e "$artifact" ]; then
     echo 'Refusing to overwrite existing package staging or artifact. Use a new output directory.' >&2
     exit 1
@@ -43,7 +43,7 @@ cp "$repo/docs/DEPENDENCY-LICENSES.txt" "$stage/documentation/packages/mimissend
 cp -R "$repo/resources/Renga" "$stage/documentation/packages/mimissendir/"
 cat > "$stage/.PackageInfo" <<'PACKAGE'
 name mimissendir
-version 0.1.0~beta11-1
+version 0.1.0~beta12-1
 architecture x86_64
 summary "MímisSendir: native XMPP conversations and Signal bridge support"
 description "MímisSendir early beta by Kambuzi EDB, based on Renga with recent conversations, compact attachments and persistent logout. AI-assisted programming with OpenAI Codex through OpenClaw. Public early-beta build for Haiku R1 beta6 x86_64. No hosted service or provider API key included."
@@ -55,8 +55,8 @@ copyrights {
 }
 licenses { "GNU GPL v3" "MIT" "OFL-1.1" "Unicode-3.0" }
 provides {
-    mimissendir = 0.1.0~beta11
-    app:mimissendir = 0.1.0~beta11
+    mimissendir = 0.1.0~beta12
+    app:mimissendir = 0.1.0~beta12
 }
 requires {
     haiku >= r1~beta6_hrev59866_79
