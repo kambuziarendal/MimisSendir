@@ -25,7 +25,7 @@ ForwardPicker::ForwardPicker(BMessenger target, BMessage request,
         "Forward message", B_TITLED_WINDOW, B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
       fTarget(target), fRequest(request), fTargets(std::move(targets))
 {
-    fSearch = new BTextControl("recipient-search", "Find:", "", new BMessage('fQry'));
+    fSearch = new BTextControl("recipient-search", "Find:", "", nullptr);
     fSearch->SetModificationMessage(new BMessage('fQry'));
     fList = new BListView("forward-recipients", B_SINGLE_SELECTION_LIST);
     fList->SetSelectionMessage(new BMessage('fRow'));
