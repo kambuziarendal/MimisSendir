@@ -59,6 +59,7 @@ public:
     void SetAccount(const std::string& account);
     void RecordActivity(BMessage* message);
     void MarkRead(const std::string& jid);
+    void ShowSelection(const std::string& jid, bool group);
     std::string SelectedJid(bool& group) const;
     std::vector<Conversations::Summary> ForwardTargets() const;
 private:

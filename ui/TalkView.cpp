@@ -18,6 +18,8 @@
 #include <stdlib.h>
 
 #include <Beep.h>
+#include <Alert.h>
+#include <Invoker.h>
 #include <Box.h>
 #include <be_apps/NetPositive/NetPositive.h>
 #include <Catalog.h>
@@ -309,6 +311,7 @@ TalkView::TalkView(const gloox::JID *user, std::string group_room,
 
 
 TalkView::~TalkView() {
+    if(fDeletePrompt.IsValid())fDeletePrompt.SendMessage(B_QUIT_REQUESTED);
     if(fMediaPicker.IsValid())fMediaPicker.SendMessage(B_QUIT_REQUESTED);
     if(fReactionPicker.IsValid())fReactionPicker.SendMessage(B_QUIT_REQUESTED);
 	fAttachments.reset();
@@ -536,14 +539,43 @@ void TalkView::MessageReceived(BMessage *msg) {
         }
         case 'mCtx': {
             auto* menu=new BPopUpMenu("Message");
-            for(const auto& choice:std::vector<std::pair<const char*,uint32>>{{"Reply",'mRpl'},{"Edit…",'mEdt'},{"Forward…",'mFwd'},{"Copy",'mCpy'},{"React…",'rMor'}}) {
+            for(const auto& choice:std::vector<std::pair<const char*,uint32>>{{"Reply",'mRpl'},{"Edit…",'mEdt'},{"Forward…",'mFwd'},{"Copy",'mCpy'},{"React…",'rMor'},{"Delete…",'mDel'}}) {
                 if(choice.second=='mEdt' && (!fHistory || !fHistory->Editable(msg->GetString("id",""),IsGroupChat())))continue;
                 auto* action=new BMessage(*msg);action->what=choice.second;
                 auto* item=new BMenuItem(choice.first,action);menu->AddItem(item);item->SetTarget(this);
+                if(choice.second=='mDel')item->SetEnabled(fHistory && fHistory->Contains(msg->GetString("id",""))
+                    && !fHistory->IsDeleted(msg->GetString("id","")) && fEditId.empty() && fReplyId.empty());
                 if(choice.second=='mEdt')item->SetEnabled(fMessageInput->IsEditable() && fEditId.empty() && fReplyId.empty() && !fLoadingArchive);
                 if(choice.second=='mRpl'||choice.second=='rMor')item->SetEnabled(fMessageInput->IsEditable() && *msg->GetString("id",""));
             }
             menu->Go(msg->GetPoint("point",BPoint()),true,true,true);break;
+        }
+        case 'mDel': {
+            const std::string id=msg->GetString("id","");
+            if(!fHistory || !fHistory->Contains(id) || fHistory->IsDeleted(id) || !fEditId.empty() || !fReplyId.empty())break;
+            const auto original=fHistory->Record(id);
+            const auto* delivery=fDeliveries.Find(original.GetString("id",""));
+            if(delivery && delivery->state==Chat::Delivery::Queued){SetStatus("Wait for sending to finish before deleting this local copy.");break;}
+            if(fDeletePrompt.IsValid())break;
+            auto* confirm=new BMessage('mDlC');confirm->AddString("id",original.GetString("id",""));
+            confirm->AddUInt64("generation",JabberSpeak::Instance()->ConnectionGeneration());
+            auto* alert=new BAlert("Delete message","Delete this message from this device?\n\nIt stays with other participants and on the server. Downloaded files are kept.","Cancel","Delete",nullptr,B_WIDTH_AS_USUAL,B_WARNING_ALERT);
+            alert->SetShortcut(0,B_ESCAPE);fDeletePrompt=BMessenger(alert);
+            alert->Go(new BInvoker(confirm,BMessenger(this)));break;
+        }
+        case 'mDlC': {
+            fDeletePrompt=BMessenger();
+            if(msg->GetInt32("which",0)!=1 || msg->GetUInt64("generation",0)!=JabberSpeak::Instance()->ConnectionGeneration()
+                || !fHistory || !fEditId.empty() || !fReplyId.empty())break;
+            const std::string id=msg->GetString("id","");
+            if(!fHistory->DeleteLocal(id)){SetStatus("The message could not be deleted. Existing history was kept.");break;}
+            fDeliveries.ForgetContent(id);
+            BMessage preview('cAct');preview.AddBool("edit",true);preview.AddString("id",id.c_str());
+            preview.AddString("jid",IsGroupChat()?_group_room.c_str():_session->target().bare().c_str());
+            preview.AddString("preview","Message deleted on this device");
+            preview.AddUInt64("generation",JabberSpeak::Instance()->ConnectionGeneration());
+            BlabberMainWindow::Instance()->PostMessage(&preview);
+            RebuildHistory();SetStatus("Deleted from this device. Other participants' copies are unchanged.");break;
         }
         case 'mEdt': {
             const std::string id=msg->GetString("id","");
@@ -969,6 +1001,7 @@ void TalkView::MessageReceived(BMessage *msg) {
 		}
 
         case 'rTry': {
+            if(fHistory && fHistory->IsDeleted(msg->GetString("id","")))break;
             const auto* failed = fDeliveries.Find(msg->GetString("id", ""));
             if (!failed || failed->state != Chat::Delivery::Failed) break;
             if (fMessageInput->TextLength() != 0 || !fReplyId.empty() || !fEditId.empty()) {

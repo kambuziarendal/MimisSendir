@@ -5,6 +5,7 @@
 //////////////////////////////////////////////////
 
 #include "MainWindow.h"
+#include "ForwardPicker.h"
 
 #include <gloox/jid.h>
 
@@ -619,16 +620,9 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
 		}
         case 'fSel': {
             if(msg->GetUInt64("generation",0)!=JabberSpeak::Instance()->ConnectionGeneration() || !JabberSpeak::Instance()->IsConnected())break;
-            auto* menu=new BPopUpMenu("Forward to conversation");
-            for(const auto& item:_roster->ForwardTargets()) {
-                auto* action=new BMessage('fDst');action->AddString("body",msg->GetString("body",""));
-                action->AddString("jid",item.jid.c_str());action->AddBool("group",item.group);
-                action->AddUInt64("generation",JabberSpeak::Instance()->ConnectionGeneration());
-                const std::string label=item.name+(item.group?" (group)":"")+" · "+item.jid;
-                menu->AddItem(new BMenuItem(label.c_str(),action));
-            }
-            if(!menu->CountItems()){auto* empty=new BMenuItem("No conversations available",nullptr);empty->SetEnabled(false);menu->AddItem(empty);}
-            menu->SetTargetForItems(this);menu->Go(Frame().LeftTop()+BPoint(100,100),true,true,true);break;
+            if(fForwardPicker.IsValid())fForwardPicker.SendMessage(B_QUIT_REQUESTED);
+            auto* picker=new ForwardPicker(BMessenger(this),*msg,_roster->ForwardTargets(),Frame().LeftTop()+BPoint(40,40));
+            fForwardPicker=BMessenger(picker);picker->Show();break;
         }
         case 'fDst': {
             if(msg->GetUInt64("generation",0)!=JabberSpeak::Instance()->ConnectionGeneration() || !JabberSpeak::Instance()->IsConnected())break;
@@ -643,7 +637,10 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
             }
             if(found)break;
             // Keep pending drafts bound to this connection; never send on selection.
-            auto& pending=fPendingForwards[jid];if(!pending.empty())pending+="\n\n";pending+=body;
+            auto& pending=fPendingForwards[(group?"g:":"d:")+jid];
+            if(pending.size()+body.size()+2>65500)break;
+            if(!pending.empty())pending+="\n\n";
+            pending+=body;
             if(group) {
                 const auto* info=BookmarkManager::Instance().GetBookmark(jid.c_str());
                 TalkManager::Instance()->JoinRoom(jid,info&&!info->nick.empty()?info->nick:JabberSpeak::Instance()->CurrentRealName());
@@ -1550,13 +1547,14 @@ BlabberMainWindow::AddTalkView(TalkView* view, bool activate)
 		fTalkCards->AddView(view);
 	}
 
-    const auto key=view->IsGroupChat()?view->GetGroupRoom():view->GetUserID().bare();
+    const auto key=std::string(view->IsGroupChat()?"g:":"d:")+(view->IsGroupChat()?view->GetGroupRoom():view->GetUserID().bare());
     auto pending=fPendingForwards.find(key);
     if(pending!=fPendingForwards.end()){view->InsertForwardedDraft(pending->second);fPendingForwards.erase(pending);activate=true;}
 	if (!activate && fTalkCards->CountItems() > 1) return;
 	fTalkCards->SetVisibleItem(fTalkCards->IndexOfView(view));
     RefreshConversationStatus();
 	_roster->MarkRead(view->IsGroupChat() ? view->GetGroupRoom() : view->GetUserID().bare());
+    _roster->ShowSelection(view->IsGroupChat() ? view->GetGroupRoom() : view->GetUserID().bare(),view->IsGroupChat());
 }
 
 
@@ -1564,6 +1562,8 @@ void BlabberMainWindow::CloseTalkViews()
 {
 	// Invoked on/under this window looper after the connection is drained.
     fPendingForwards.clear();
+    if(fForwardPicker.IsValid())fForwardPicker.SendMessage(B_QUIT_REQUESTED);
+    fForwardPicker=BMessenger();
 	while (fTalkCards->CountItems() > 0) {
 		BView* view = fTalkCards->ItemAt(0)->View();
 		if (!view) break;

@@ -14,6 +14,8 @@ public:
     std::vector<BMessage> Load();
     std::vector<BMessage> Records() const;
     bool Contains(const std::string& id) const;
+    bool IsDeleted(const std::string& id) const;
+    bool DeleteLocal(const std::string& id);
     bool Put(BMessage record);
     bool MergeArchive(BMessage record);
     BMessage Record(const std::string& id) const;
@@ -30,7 +32,7 @@ public:
     void Reactions(const std::string& id, const Chat::ReactionState& state);
     Chat::ReactionState Reactions(const std::string& id) const;
     const std::string& Error() const { return fError; }
-    bool Empty() const { return fRecords.empty(); }
+    bool Empty() const { return Records().empty(); }
 private:
     bool Save(const std::string& key, const BMessage& record);
     std::string Key(const std::string& id) const;

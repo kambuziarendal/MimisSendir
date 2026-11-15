@@ -196,6 +196,7 @@ private:
 	BButton* fAttach;
     BMessenger fMediaPicker;
     BMessenger fReactionPicker;
+    BMessenger fDeletePrompt;
 	BButton* fCancelUpload;
 	BStatusBar* fUploadProgress;
 	BGroupView* fUploadStrip;

@@ -96,6 +96,19 @@ Group read counts remain visible so a read by one participant is not presented a
 
 Incoming messages with read-marker support are acknowledged after a short, stable visible dwell in the active conversation. Hidden, minimized, inactive or clipped content is not acknowledged just because it was received. Both sides and any Signal bridge must support forwarding the markers. Signal privacy settings may suppress receipts. Native synthetic verification does not establish live Signal behavior for every bridge, especially group receipts.
 
+## Forward and delete messages
+
+Right-click a message and choose **Forward…**. Favorites come first, followed
+by recent conversations. **Other contacts…** opens the searchable contact/group
+list. Select a recipient and choose **Use recipient**, then review the recipient
+and draft before pressing Send. Selecting a destination never sends by itself.
+
+**Delete…** in the same menu removes the message from this device after confirmation.
+It does not retract other participants' copies or delete server history, downloaded
+files or copies already quoted elsewhere. Deleted message content is removed from
+our local record; a small identity marker prevents later history sync from
+bringing that message back. Local deletion is not secure disk erasure.
+
 ## Stickers and GIFs
 
 Direct installation from Signal Stickers works in **WebPositive** (user-verified).

@@ -84,6 +84,7 @@ add_executable(Renga
     ui/AvatarImage.cpp
     ui/StickerPackWindow.cpp
     network/SignalStickers.cpp
+    ui/ForwardPicker.cpp
     ui/MediaPicker.cpp
     ui/MediaPreview.cpp
     support/AnimatedImage.cpp
@@ -350,4 +351,9 @@ if(RENGA_BUILD_NATIVE_TESTS)
     add_executable(MimisSendirServiceKeyTests tests/native/ServiceKeys.cpp support/ServiceKeys.cpp)
     target_compile_features(MimisSendirServiceKeyTests PRIVATE cxx_std_20)
     target_link_libraries(MimisSendirServiceKeyTests PRIVATE be)
+endif()
+
+if(RENGA_BUILD_NATIVE_TESTS)
+    add_executable(RengaForwardTests tests/forward.cpp support/ConversationStore.cpp)
+    target_compile_features(RengaForwardTests PRIVATE cxx_std_17)
 endif()

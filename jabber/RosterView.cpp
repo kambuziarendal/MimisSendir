@@ -619,3 +619,19 @@ std::vector<Conversations::Summary> RosterView::ForwardTargets() const {
     std::vector<Conversations::Summary> result;for(const auto& [jid,item]:targets)result.push_back(item);
     std::sort(result.begin(),result.end(),[](const auto& a,const auto& b){return a.name<b.name;});return result;
 }
+
+void RosterView::ShowSelection(const std::string& jid, bool group) {
+    SetSelectionMessage(nullptr);
+    int32 match=-1;
+    for(int32 i=0;i<CountItems();++i) {
+        if(auto* item=dynamic_cast<ConversationItem*>(ItemAt(i))) {
+            if(item->summary.jid==jid && item->summary.group==group)match=i;
+        } else if(auto* item=dynamic_cast<RosterItem*>(ItemAt(i))) {
+            if(!group && item->GetUserID()->JID().bare()==jid)match=i;
+        } else if(auto* item=dynamic_cast<BookmarkItem*>(ItemAt(i))) {
+            if(group && item->GetUserID().bare()==jid)match=i;
+        }
+    }
+    if(match<0)DeselectAll();else Select(match);
+    SetSelectionMessage(new BMessage(kRosterSelectionChanged));
+}

@@ -114,6 +114,7 @@ private:
 
 	BCardLayout*			fTalkCards;
     std::map<std::string,std::string> fPendingForwards;
+    BMessenger fForwardPicker;
 	BSplitView* fSidebarSplit = nullptr;
     BButton* fSidebarToggle = nullptr;
     BMenu* fApplicationMenu = nullptr;

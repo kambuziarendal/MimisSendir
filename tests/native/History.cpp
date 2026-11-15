@@ -119,5 +119,38 @@ int main(){
     Check(roomReads.MarkRead("sent-one","reads@conference.fixture.test/Carol"),"second group reader retained");
     Check(!roomReads.MarkRead("sent-one","reads@conference.fixture.test/Bob"),"group reader not counted twice");
     Check(roomReads.ReadLabel("sent-one")=="Read by 2 participants","distinct group count");
+    ChatHistory deletion(root,"delete@fixture.test","peer@fixture.test");
+    BMessage doomed('hRec');doomed.AddString("id","delete-one");doomed.AddString("body","delete-only-secret");
+    doomed.AddString("attachment","https://fixture.test/delete-only-secret.png");
+    doomed.AddString("sender","delete@fixture.test");doomed.AddBool("outgoing",true);doomed.AddInt64("time",10);
+    Check(deletion.Put(doomed),"deletion fixture saved");deletion.Alias("delete-one","delete-stable");
+    Check(deletion.DeleteLocal("delete-stable"),"local delete accepts stable alias");
+    Check(deletion.Empty() && deletion.Records().empty(),"deleted message disappears from visible history");
+    Check(deletion.Contains("delete-one") && deletion.IsDeleted("delete-stable"),"identity tombstone prevents duplicate insertion");
+    Check(!deletion.Record("delete-one").HasString("body") && !deletion.Record("delete-one").HasString("attachment"),"deleted content and media URL removed");
+    Check(!deletion.DeleteLocal("missing") && !deletion.DeleteLocal("delete-one"),"unknown and repeated deletion are no-ops");
+    ChatHistory deletedRestart(root,"delete@fixture.test","peer@fixture.test");
+    Check(deletedRestart.Load().empty() && deletedRestart.IsDeleted("delete-stable"),"deletion survives restart");
+    doomed.ReplaceString("id","delete-stable");doomed.ReplaceInt64("time",1000);
+    Check(!deletedRestart.MergeArchive(doomed) && !deletedRestart.Put(doomed),"archive and live overlap cannot resurrect deletion");
+    Check(!deletedRestart.Correct("delete-stable","late-edit","late content","delete@fixture.test",true,2000),"late correction cannot restore deleted content");
+    deletedRestart.Reactions("delete-one",state);deletedRestart.Delivery("delete-one",3);
+    Check(!deletedRestart.MarkRead("delete-one","peer@fixture.test") && deletedRestart.Reactions("delete-one").actors.empty(),"late receipts and reactions do not recreate deleted metadata");
+    deletedRestart.Alias("delete-one","delete-late-alias");
+    Check(deletedRestart.IsDeleted("delete-late-alias"),"late server identity remains bound to deletion");
+    ChatHistory isolatedDelete(root,"other-delete@fixture.test","peer@fixture.test");
+    Check(isolatedDelete.Put(doomed) && !isolatedDelete.IsDeleted("delete-stable"),"deletion does not cross accounts");
+    for(int i=0;i<1002;++i){BMessage extra('hRec');extra.AddString("id",("after-delete-"+std::to_string(i)).c_str());extra.AddString("body","newer");extra.AddInt64("time",3000+i);deletedRestart.Put(extra);}
+    ChatHistory oldDeletion(root,"delete@fixture.test","peer@fixture.test");
+    Check(oldDeletion.Load().size()==1000 && oldDeletion.IsDeleted("delete-late-alias"),"old tombstone survives the 1000-message visible limit");
+    Check(!oldDeletion.MergeArchive(doomed),"old deleted original still rejects archive replay");
+    ChatHistory failedDelete(root+"/failure","delete@fixture.test","peer@fixture.test");
+    Check(failedDelete.Put(doomed),"save-failure fixture created");
+    std::filesystem::rename(root+"/failure",root+"/failure-away");
+    Check(!failedDelete.DeleteLocal("delete-stable") && !failedDelete.IsDeleted("delete-stable")
+        && failedDelete.Record("delete-stable").HasString("body"),"failed disk save preserves visible message and content");
+    std::filesystem::rename(root+"/failure-away",root+"/failure");
+    ChatHistory failedDeleteRestart(root+"/failure","delete@fixture.test","peer@fixture.test");
+    Check(failedDeleteRestart.Load().size()==1,"failed deletion preserves original disk record");
     std::filesystem::remove_all(root);printf("%d native history checks passed\n",checks);
 }

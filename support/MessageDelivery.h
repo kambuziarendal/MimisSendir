@@ -38,6 +38,12 @@ public:
         auto it = fMessages.find(id);
         return it == fMessages.end() ? nullptr : &it->second;
     }
+    void ForgetContent(const std::string& id) {
+        auto it=fMessages.find(id);if(it==fMessages.end())return;
+        auto& message=it->second;
+        message.text.clear();message.replyId.clear();message.replyTo.clear();
+        message.replyPrefix.clear();message.replyLabel.clear();
+    }
     static const char* Label(Delivery state) {
         switch (state) {
             case Delivery::Queued: return "Sending";

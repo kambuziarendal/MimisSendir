@@ -24,7 +24,7 @@ ChatHistory::ChatHistory(const std::string& settings,const std::string& account,
     chmod((settings+"/history-v1").c_str(),0700);chmod(parent.c_str(),0700);chmod(fRoot.c_str(),0700);
 }
 std::vector<BMessage> ChatHistory::Load() {
-    std::vector<BMessage> records;if(fRoot.empty())return records;
+    std::vector<BMessage> records, deleted;if(fRoot.empty())return records;
     std::error_code ec;
     for(const auto& file:std::filesystem::directory_iterator(fRoot,ec)) {
         if(file.path().extension()!=".msg" || file.is_symlink(ec) || !file.is_regular_file(ec))continue;
@@ -33,21 +33,43 @@ std::vector<BMessage> ChatHistory::Load() {
         if(m.Unflatten(&input)!=B_OK || m.what!='hRec' || !*m.GetString("id","") || m.GetInt64("time",0)<=0) {
             fError="Some history records could not be read; originals were preserved.";continue;
         }
+        if(m.GetBool("deleted-local",false)){deleted.push_back(m);continue;}
         records.push_back(m);
         if(records.size()>1000){auto oldest=std::min_element(records.begin(),records.end(),[](const auto& a,const auto& b){return a.GetInt64("time",0)<b.GetInt64("time",0);});records.erase(oldest);}
     }
     std::stable_sort(records.begin(),records.end(),[](const auto& a,const auto& b){return a.GetInt64("time",0)<b.GetInt64("time",0);});
     if(records.size()>1000)records.erase(records.begin(),records.end()-1000);
-    fRecords.clear();for(const auto& m:records)fRecords[m.GetString("id","")]=m;
+    fRecords.clear();for(const auto& m:deleted)fRecords[m.GetString("id","")]=m;
+    for(const auto& m:records)fRecords[m.GetString("id","")]=m;
     return records;
 }
 std::string ChatHistory::Key(const std::string& id) const {
     if(id.empty())return {};
     if(fRecords.count(id))return id;
-    for(const auto& [key,m]:fRecords)if(id==m.GetString("alias","") || id==m.GetString("wire-id","") || id==m.GetString("correction-id",""))return key;
+    for(const auto& [key,m]:fRecords) {
+        if(id==m.GetString("alias","") || id==m.GetString("wire-id","") || id==m.GetString("correction-id",""))return key;
+        const char* alias;
+        for(int32 i=0;m.FindString("deleted-alias",i,&alias)==B_OK;++i)if(id==alias)return key;
+    }
     return {};
 }
 bool ChatHistory::Contains(const std::string& id) const { return !Key(id).empty(); }
+bool ChatHistory::IsDeleted(const std::string& id) const {
+    auto key=Key(id);return !key.empty() && fRecords.at(key).GetBool("deleted-local",false);
+}
+bool ChatHistory::DeleteLocal(const std::string& id) {
+    auto key=Key(id);if(key.empty() || IsDeleted(id))return false;
+    const auto& old=fRecords.at(key);
+    // Retain only identity/timing tombstones so archive sync and late aliases
+    // cannot restore deleted content. Message text, edits and media URLs go away.
+    BMessage deleted('hRec');
+    for(const auto* name:{"id","alias","wire-id","correction-id"})
+        if(old.HasString(name))deleted.AddString(name,old.GetString(name,""));
+    deleted.AddInt64("time",old.GetInt64("time",0));
+    deleted.AddBool("deleted-local",true);
+    if(!Save(key,deleted))return false;
+    fRecords[key]=deleted;return true;
+}
 bool ChatHistory::Save(const std::string& key,const BMessage& record) {
     if(fRoot.empty())return false;
     auto path=fRoot+"/"+Digest(key)+".msg";auto temporary=fRoot+"/.pending-XXXXXX";
@@ -69,6 +91,7 @@ bool ChatHistory::MergeArchive(BMessage record) {
     auto key=Key(record.GetString("id",""));
     if(key.empty())return Put(record);
     const auto& existing=fRecords.at(key);
+    if(existing.GetBool("deleted-local",false))return false;
     const bool upgradeMarkable = record.GetBool("markable",false) && !existing.GetBool("markable",false);
     if(existing.GetInt64("time",0)==timestamp && !upgradeMarkable)return false;
     // The archive's clock is authoritative for ordering. Preserve all local
@@ -81,10 +104,12 @@ bool ChatHistory::MergeArchive(BMessage record) {
 void ChatHistory::Alias(const std::string& original,const std::string& stable) {
     auto key=Key(original);if(key.empty() || stable.empty())return;
     auto& m=fRecords[key];if(stable==m.GetString("alias",""))return;
+    const std::string priorAlias=m.GetString("alias","");
+    if(m.GetBool("deleted-local",false) && !priorAlias.empty())m.AddString("deleted-alias",priorAlias.c_str());
     m.RemoveName("alias");m.AddString("alias",stable.c_str());Save(key,m);
 }
 void ChatHistory::Reactions(const std::string& id,const Chat::ReactionState& state) {
-    auto key=Key(id);if(key.empty())return;auto& record=fRecords[key];record.RemoveName("reaction");
+    auto key=Key(id);if(key.empty() || IsDeleted(id))return;auto& record=fRecords[key];record.RemoveName("reaction");
     for(const auto& [actor,info]:state.actors){BMessage m;m.AddString("actor",actor.c_str());m.AddString("name",info.name.c_str());for(const auto& e:info.values)m.AddString("emoji",e.c_str());record.AddMessage("reaction",&m);}
     Save(key,record);
 }
@@ -109,6 +134,7 @@ bool ChatHistory::Correct(const std::string& target,const std::string& id,const 
     const std::string& sender,bool outgoing,int64 timestamp) {
     auto key=Key(target);if(key.empty() || id.empty() || id.size()>1024 || body.empty() || body.size()>65536)return false;
     const auto& old=fRecords.at(key);
+    if(old.GetBool("deleted-local",false))return false;
     auto author=[this](const std::string& value) {
         // A room occupant is a distinct author. Direct resources belong to one bare JID.
         return fGroup
@@ -137,7 +163,7 @@ bool ChatHistory::IsCorrection(const std::string& id) const {
 }
 bool ChatHistory::RejectCorrection(const std::string& id) {
     if(id.empty())return false;
-    for(auto& [key,record]:fRecords)if(id==record.GetString("correction-id","")
+    for(auto& [key,record]:fRecords)if(!record.GetBool("deleted-local",false) && id==record.GetString("correction-id","")
         && std::string(record.GetString("edit-state",""))=="unconfirmed") {
         BMessage m(record);m.RemoveName("failed-edit-body");m.AddString("failed-edit-body",m.GetString("body",""));
         const std::string previous=m.GetString("previous-body","");m.ReplaceString("body",previous.c_str());
@@ -151,7 +177,7 @@ bool ChatHistory::RejectCorrection(const std::string& id) {
 }
 bool ChatHistory::ConfirmCorrection(const std::string& id) {
     if(id.empty())return false;
-    for(auto& [key,record]:fRecords)if(id==record.GetString("correction-id","")) {
+    for(auto& [key,record]:fRecords)if(!record.GetBool("deleted-local",false) && id==record.GetString("correction-id","")) {
         BMessage m(record);m.ReplaceString("edit-state","confirmed");
         if(!Save(key,m))return false;
         record=m;return true;
@@ -160,14 +186,14 @@ bool ChatHistory::ConfirmCorrection(const std::string& id) {
 }
 
 void ChatHistory::Delivery(const std::string& id,int32 state) {
-    auto key=Key(id);if(key.empty())return;
+    auto key=Key(id);if(key.empty() || IsDeleted(id))return;
     BMessage m(fRecords.at(key));m.RemoveName("delivery");m.AddInt32("delivery",state);
     if(Save(key,m))fRecords[key]=m;
 }
 
 std::vector<BMessage> ChatHistory::Records() const {
     std::vector<BMessage> records;records.reserve(fRecords.size());
-    for(const auto& [id,m]:fRecords){(void)id;records.push_back(m);}
+    for(const auto& [id,m]:fRecords){(void)id;if(!m.GetBool("deleted-local",false))records.push_back(m);}
     std::stable_sort(records.begin(),records.end(),[](const auto& a,const auto& b){return a.GetInt64("time",0)<b.GetInt64("time",0);});
     return records;
 }
