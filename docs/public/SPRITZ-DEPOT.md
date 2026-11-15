@@ -11,3 +11,10 @@ The house publisher exposes pinned packages through its `stable` install channel
 To regenerate, use `tools/release/make_spritz_manifest.py` with the final local HPKG, pinned release URL, public homepage and accurate license field. `POST /publish` validates a form; `POST /publications` publishes immediately and is not a preview endpoint.
 
 Use the manifest on the current main branch. The initial beta tags preserve a pre-upload manifest with a `~` in the HPKG URL; GitHub normalized that character to `.` when creating the asset. Main uses the actual verified asset URL. The HPKG contents and package version are unchanged.
+
+The HaikuDepot repository can rewrite the HPKG vendor to `Spritz Depot` while the
+public download resolver still points to the original author-hosted HPKG. Do not
+assume these archives have equal hashes. Compare extracted payloads, native file
+attributes and package metadata, then verify the installed executable from the
+repository copy. In beta 16 only `.PackageInfo` vendor/size/time differ; the native
+executable and remaining payload are identical. Retain both package identities.

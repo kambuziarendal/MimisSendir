@@ -39,3 +39,13 @@ Do not restore stale profiles. Delete is not server retraction or secure erasure
 other participants, existing quotations and downloaded files are unchanged.
 Physical hardware and live Signal forwarding/deletion are not verified. The prior
 send/scroll flicker investigation remains paused at the user's request.
+
+## HaikuDepot repository copy
+
+Spritz's public Haiku repository repackages the HPKG with vendor `Spritz Depot`.
+Its package SHA-256 is
+`52dd7e6cb96e0fdb773e26d65785d0049277adc62ab4d7bbc26c2339e7988e09`.
+Native extraction comparison finds only the `.PackageInfo` vendor change. All
+payload bytes and listed file attributes match. The repository copy was also
+installed and launched: the executable hash matches the qualified build above.
+The direct Spritz download resolver retains the original GitHub package hash.
