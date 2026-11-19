@@ -90,7 +90,13 @@ static const int kSelfPingDelay = 5 * 60000000;
 
 
 struct TalkView::ArchiveReplay {
-    enum Stage : size_t { Parse, Messages, Corrections, Reads, Restore, Reactions, Deferred };
+    enum Stage : size_t { Parse, Messages, Corrections, Reads, Restore, Paint, PendingLines, Reactions, Deferred };
+    struct PendingLine {
+        Paragraph paragraph;
+        int64 timestamp;
+        std::string id;
+        std::string attachment;
+    };
 
     explicit ArchiveReplay(const BMessage& message)
         : result(message), complete(message.GetBool("complete", false)) {}
@@ -101,6 +107,8 @@ struct TalkView::ArchiveReplay {
     Stage stage = Parse;
     size_t next = 0;
     std::array<std::vector<BMessage>, Deferred> records;
+    std::vector<BMessage> timelineRecords;
+    std::deque<PendingLine> pendingLines;
 };
 
 
@@ -361,6 +369,7 @@ void TalkView::AttachedToWindow()
         fHistory=std::make_unique<ChatHistory>(root.Path(),JabberSpeak::Instance()->GlooxClient()->jid().bare(),
             IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat());
         RestoreHistory();
+        fInitialHistoryWasEmpty = fHistory->Empty() && fHistory->Error().empty();
     }
 	if (IsGroupChat()) {
 		BlabberMainWindow::Instance()->StartWatching(this, kRoomInfo);
@@ -517,8 +526,11 @@ void TalkView::MessageReceived(BMessage *msg) {
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
         msg->RemoveName("name");msg->AddString("name",fFriendlyName.c_str());
     }
+    const bool deferredTimelineChange = RestoringArchiveTimeline()
+        && (msg->what == 'mDlC' || ((msg->what == kMessageReceipt
+            || msg->what == kMessageDeliveryError) && fHistory->IsCorrection(msg->GetString("id", ""))));
     if (fLoadingArchive && !fApplyingDeferredArchiveUpdate
-        && (msg->what == 'rInc' || msg->what == 'mCor' || msg->what == 'mRed')) {
+        && (msg->what == 'rInc' || msg->what == 'mCor' || msg->what == 'mRed' || deferredTimelineChange)) {
         fDeferredArchiveUpdates.push_back(*msg);
         return;
     }
@@ -1433,13 +1445,6 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
 	if (runs.size() == 0)
 		return false;
 
-	// Figure out if the view is scrolled down before modifying it
-	BScrollBar* vscroll = fTimelineScroller->ScrollBar(B_VERTICAL);
-	float min, max;
-	vscroll->GetRange(&min, &max);
-	float scrollBottom = vscroll->Value();
-	bool scrolledDown = (scrollBottom == max);
-
 	// prune trailing whitespace
 	// FIXME do this before computing Xhtml textruns, otherwise it will offset everything
 #if 0
@@ -1463,17 +1468,6 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
 	paragraphStyle.SetMessageKind(type == OTHER ? 0 : type == LOCAL ? 2 : 1);
 	paragraphStyle.SetLineInset(0);
 	paragraphStyle.SetFirstLineInset(0);
-    if(type!=OTHER) {
-        const time_t seconds=timestamp>0?timestamp/1000000:0;
-        paragraphStyle.SetMessageTime(MessageFooter(messageId, timestamp));
-        paragraphStyle.SetDeliveryMark(MessageDeliveryMark(messageId));
-        const auto day=ChatDate::Day(seconds);
-        if(day!=fLastMessageDay) {
-            ParagraphStyle separator;separator.SetDateDivider(seconds);separator.SetSpacingTop(12);separator.SetSpacingBottom(8);
-            Paragraph date(separator);date.Append(TextSpan(" ",charStyleThinBlack));fTimelineDocument->Append(date);
-            fLastMessageDay=day;
-        }
-    }
     if(IsGroupChat() && type!=OTHER)paragraphStyle.SetAvatar(Avatars::Get(Avatars::Account(),type==LOCAL?Avatars::Account():_group_room+"/"+username),username);
     Paragraph paragraph(paragraphStyle);
 
@@ -1536,8 +1530,46 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
         }
     }
 
+    if (RestoringArchiveTimeline() && !fReplayingHistory) {
+        // Persist and acknowledge live messages immediately, but append their
+        // formatted rows after the chronological archive snapshot.
+        fArchiveReplay->pendingLines.push_back({std::move(paragraph), timestamp, messageId, attachment});
+        return true;
+    }
+    return AppendTalkParagraph(std::move(paragraph), timestamp, messageId, attachment);
+}
+
+bool TalkView::AppendTalkParagraph(Paragraph paragraph, int64 timestamp,
+    const std::string& messageId, const std::string& attachment)
+{
+    auto* vscroll = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float min, max;
+    vscroll->GetRange(&min, &max);
+    const bool scrolledDown = vscroll->Value() == max;
+
+    const bool chatMessage = paragraph.Style().MessageKind() != 0;
+    if (chatMessage) {
+        const time_t seconds = timestamp > 0 ? timestamp / 1000000 : 0;
+        auto style = paragraph.Style();
+        style.SetMessageTime(MessageFooter(messageId, timestamp));
+        style.SetDeliveryMark(MessageDeliveryMark(messageId));
+        paragraph.SetStyle(style);
+        const auto day = ChatDate::Day(seconds);
+        if (day != fLastMessageDay) {
+            ParagraphStyle divider;
+            divider.SetDateDivider(seconds);
+            divider.SetSpacingTop(12);
+            divider.SetSpacingBottom(8);
+            CharacterStyle textStyle;
+            textStyle.SetForegroundColor(B_DOCUMENT_TEXT_COLOR);
+            Paragraph date(divider);
+            date.Append(TextSpan(" ", textStyle));
+            fTimelineDocument->Append(date);
+            fLastMessageDay = day;
+        }
+    }
 	if (!fTimelineDocument->Append(paragraph)) return false;
-    if(type!=OTHER && !messageId.empty()) {
+    if (chatMessage && !messageId.empty()) {
         const int32 index = fTimelineDocument->CountParagraphs() - 1;
         fMessageParagraphs.emplace(messageId, index);
         if(!fReactions)fReactions=std::make_unique<ReactionController>(BMessenger(this),*fTimeline,
@@ -2043,6 +2075,16 @@ void TalkView::ResetArchiveReplay()
     fDeferredArchiveUpdates.clear();
 }
 
+void TalkView::ResetTimelineForHistory()
+{
+    fMessageParagraphs.clear();
+    fLastMessageDay.clear();
+    fTimelineDocument.SetTo(new TextDocument(), true);
+    fTimeline->SetTextDocument(fTimelineDocument);
+    if (fReactions) fReactions->Rebind(fTimelineDocument);
+    if (fAttachments) fAttachments->Rebind(fTimelineDocument);
+}
+
 void TalkView::RestoreTimelineFromHistory(bool reload)
 {
     auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
@@ -2050,20 +2092,60 @@ void TalkView::RestoreTimelineFromHistory(bool reload)
     bar->GetRange(&low, &high);
     const float position = bar->Value();
     const bool bottom = position >= high - 1;
-    fMessageParagraphs.clear();
-    fLastMessageDay.clear();
-    fTimelineDocument.SetTo(new TextDocument(), true);
-    fTimeline->SetTextDocument(fTimelineDocument);
-    if (fReactions) fReactions->Rebind(fTimelineDocument);
-    if (fAttachments) fAttachments->Rebind(fTimelineDocument);
+    ResetTimelineForHistory();
     RestoreHistory(reload);
     if (!bottom) bar->SetValue(position);
+}
+
+bool TalkView::RestoringArchiveTimeline() const
+{
+    return fArchiveReplay && (fArchiveReplay->stage == ArchiveReplay::Paint
+        || fArchiveReplay->stage == ArchiveReplay::PendingLines);
+}
+
+void TalkView::PaintArchiveSlice()
+{
+    auto& replay = *fArchiveReplay;
+    auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float low, high;
+    bar->GetRange(&low, &high);
+    const float position = bar->Value();
+    const bool bottom = position >= high - 1;
+    const auto deadline = system_time() + 8000;
+
+    fReplayingHistory = true; // suppress per-paragraph scrolling/repaint
+    for (int work = 0; work < 8 && (work == 0 || system_time() < deadline); ++work) {
+        if (replay.stage == ArchiveReplay::Paint) {
+            if (replay.next < replay.timelineRecords.size()) {
+                RestoreHistoryRecord(replay.timelineRecords[replay.next++]);
+                continue;
+            }
+            replay.timelineRecords.clear();
+            replay.next = 0;
+            replay.stage = ArchiveReplay::PendingLines;
+        }
+        if (replay.pendingLines.empty()) {
+            replay.stage = ArchiveReplay::Reactions;
+            break;
+        }
+        auto line = std::move(replay.pendingLines.front());
+        replay.pendingLines.pop_front();
+        AppendTalkParagraph(std::move(line.paragraph), line.timestamp, line.id, line.attachment);
+    }
+    fReplayingHistory = false;
+    if (fReactions) fReactions->SetBatch(false);
+    FinishTimelineBatch(position, bottom);
 }
 
 void TalkView::ApplyArchiveSlice()
 {
     using Replay = ArchiveReplay;
     auto& replay = *fArchiveReplay;
+    if (RestoringArchiveTimeline()) {
+        PaintArchiveSlice();
+        ScheduleArchiveSlice();
+        return;
+    }
     const bigtime_t deadline = system_time() + 8000;
     // Durability is unchanged: each write is still synchronous and atomic.
     // Bound work between returns to the looper even when writes are cheap.
@@ -2091,7 +2173,27 @@ void TalkView::ApplyArchiveSlice()
         }
 
         if (replay.stage == Replay::Restore) {
-            if (replay.changed) RestoreTimelineFromHistory(true);
+            if (replay.changed) {
+                // An initially empty direct chat has no older rows omitted by
+                // local Load(). Snapshot the committed archive and any live
+                // messages already received, without reopening every file.
+                const bool firstRestoreFromEmpty = fInitialHistoryWasEmpty;
+                fInitialHistoryWasEmpty = false;
+                auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+                float low, high;
+                bar->GetRange(&low, &high);
+                if (!IsGroupChat() && firstRestoreFromEmpty && fHistory->Error().empty()
+                    && bar->Value() >= high - 1 && fEditId.empty()) {
+                    replay.timelineRecords = fHistory->Records();
+                    if (replay.timelineRecords.size() <= 1000) {
+                        ResetTimelineForHistory();
+                        replay.stage = Replay::Paint;
+                        break;
+                    }
+                    replay.timelineRecords.clear();
+                }
+                RestoreTimelineFromHistory(true);
+            }
             replay.stage = Replay::Reactions;
             break;
         }
@@ -2163,6 +2265,8 @@ void TalkView::ApplyArchiveSlice()
                 break;
             case Replay::Parse:
             case Replay::Restore:
+            case Replay::Paint:
+            case Replay::PendingLines:
             case Replay::Deferred:
                 break;
         }
@@ -2170,19 +2274,37 @@ void TalkView::ApplyArchiveSlice()
     ScheduleArchiveSlice();
 }
 
-void TalkView::RestoreHistory(bool reload) {
-    auto records=reload?fHistory->Load():fHistory->Records();fReplayingHistory=true;
-    for(const auto& m:records) {
-        std::list<TextSpan> runs;runs.emplace_back(m.GetString("body",""),CharacterStyle());
-        AddToTalk(m.GetString("name",""),runs,m.GetBool("outgoing",false)?LOCAL:MAIN_RECIPIENT,true,
-            m.GetInt64("time",0),true,m.GetString("id",""),m.GetString("attachment",""),m.GetString("sender",""),m.GetString("wire-id",""),m.GetBool("markable",false));
+void TalkView::RestoreHistoryRecord(const BMessage& record)
+{
+    std::list<TextSpan> runs;
+    runs.emplace_back(record.GetString("body", ""), CharacterStyle());
+    AddToTalk(record.GetString("name", ""), runs,
+        record.GetBool("outgoing", false) ? LOCAL : MAIN_RECIPIENT, true,
+        record.GetInt64("time", 0), true, record.GetString("id", ""),
+        record.GetString("attachment", ""), record.GetString("sender", ""),
+        record.GetString("wire-id", ""), record.GetBool("markable", false));
+    if (fReactions) fReactions->Alias(record.GetString("id", ""), record.GetString("alias", ""));
+}
 
-        if(fReactions)fReactions->Alias(m.GetString("id",""),m.GetString("alias",""));
-    }
-    fReplayingHistory=false;
-    if(fReactions)fReactions->SetBatch(false);
-    fTimeline->Relayout();fTimeline->Invalidate();
-    auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);bar->SetValue(high);
+void TalkView::FinishTimelineBatch(float position, bool bottom)
+{
+    fTimeline->Relayout();
+    fTimeline->Invalidate();
+    auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float low, high;
+    bar->GetRange(&low, &high);
+    bar->SetValue(bottom ? high : position);
+}
+
+void TalkView::RestoreHistory(bool reload)
+{
+    auto records = reload ? fHistory->Load() : fHistory->Records();
+    fReplayingHistory = true;
+    for (const auto& record : records)
+        RestoreHistoryRecord(record);
+    fReplayingHistory = false;
+    if (fReactions) fReactions->SetBatch(false);
+    FinishTimelineBatch(0, true);
 }
 
 void TalkView::InsertForwardedDraft(const std::string& text) {

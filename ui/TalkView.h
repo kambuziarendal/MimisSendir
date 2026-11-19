@@ -188,6 +188,13 @@ private:
     bool fReplayingHistory = false;
     bool fLoadingArchive = false;
     struct ArchiveReplay;
+    bool fInitialHistoryWasEmpty = false;
+    bool RestoringArchiveTimeline() const;
+    void PaintArchiveSlice();
+    bool AppendTalkParagraph(Paragraph paragraph, int64 timestamp,
+        const std::string& messageId, const std::string& attachment);
+    void RestoreHistoryRecord(const BMessage& record);
+    void FinishTimelineBatch(float position, bool bottom);
     std::unique_ptr<ArchiveReplay> fArchiveReplay;
     std::deque<BMessage> fDeferredArchiveUpdates;
     bool fApplyingDeferredArchiveUpdate = false;
@@ -196,6 +203,7 @@ private:
     void ScheduleArchiveSlice();
     void ApplyArchiveSlice();
     void ResetArchiveReplay();
+    void ResetTimelineForHistory();
     void RestoreTimelineFromHistory(bool reload);
     void RestoreHistory(bool reload=true);
     void RebuildHistory();
