@@ -1,5 +1,11 @@
 # Beta releases
 
+## Beta 17
+
+- Fix typing stalls when new messages, receipts or contact updates arrive in a busy conversation.
+- Process server history in small batches and draw the first archive for a direct chat without blocking the composer for the whole replay.
+- Preserve message order, drafts and delivery state. No bridge update is required.
+
 ## Beta 15
 
 - Prevent the live message view from being erased before a redraw. Compose each changed region offscreen and present the completed result in one operation.
