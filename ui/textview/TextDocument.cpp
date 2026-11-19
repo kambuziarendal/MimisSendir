@@ -300,6 +300,7 @@ TextDocument::Append(const Paragraph& paragraph)
 			"document\n");
 		return false;
 	}
+	_NotifyTextChanged(TextChangedEvent(CountParagraphs() - 1, 1, true));
 	return true;
 }
 
@@ -823,6 +824,6 @@ bool TextDocument::SetParagraph(int32 index, const Paragraph& paragraph)
 	_NotifyTextChanging(changing);
 	if (changing.IsCanceled()) return false;
 	fParagraphs[index] = paragraph;
-	_NotifyTextChanged(TextChangedEvent(index, 1));
+	_NotifyTextChanged(TextChangedEvent(index, 1, true));
 	return true;
 }

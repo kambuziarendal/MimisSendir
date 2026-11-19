@@ -19,6 +19,7 @@
 #include <deque>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include <interface/Box.h>
 #include <interface/Button.h>
@@ -163,6 +164,7 @@ private:
 	BScrollView*		fTimelineScroller;
 	TextDocumentView*	fTimeline;
 	TextDocumentRef		fTimelineDocument;
+    std::unordered_map<std::string, int32> fMessageParagraphs;
     std::string fLastMessageDay;
     std::string fCalendarDay;
     BMessageRunner* fDatePoll=nullptr;

@@ -21,7 +21,7 @@ public:
     BMessage Record(const std::string& id) const;
     bool MarkRead(const std::string& id, const std::string& actor);
     std::string ReadLabel(const std::string& id) const;
-    void Delivery(const std::string& id, int32 state);
+    bool Delivery(const std::string& id, int32 state);
     bool Editable(const std::string& id, bool group) const;
     bool Correct(const std::string& target, const std::string& id, const std::string& body,
         const std::string& sender, bool outgoing, int64 timestamp);

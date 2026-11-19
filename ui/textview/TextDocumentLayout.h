@@ -17,13 +17,6 @@ class BView;
 
 class ParagraphLayoutInfo {
 public:
-	ParagraphLayoutInfo()
-		:
-		y(0.0f),
-		layout()
-	{
-	}
-
 	ParagraphLayoutInfo(float y, const ParagraphLayoutRef& layout)
 		:
 		y(y),
@@ -31,35 +24,9 @@ public:
 	{
 	}
 
-	ParagraphLayoutInfo(const ParagraphLayoutInfo& other)
-		:
-		y(other.y),
-		layout(other.layout)
-	{
-	}
-
-
-	ParagraphLayoutInfo& operator=(const ParagraphLayoutInfo& other)
-	{
-		y = other.y;
-		layout = other.layout;
-		return *this;
-	}
-
-	bool operator==(const ParagraphLayoutInfo& other) const
-	{
-		return y == other.y
-			&& layout == other.layout;
-	}
-
-	bool operator!=(const ParagraphLayoutInfo& other) const
-	{
-		return !(*this == other);
-	}
-
-public:
-	float				y;
-	ParagraphLayoutRef	layout;
+	float y;
+	ParagraphLayoutRef layout;
+	bool orderedBottoms = true;
 };
 
 
@@ -104,6 +71,7 @@ public:
 
 public:
     BRect ParagraphBounds(int32 index);
+    std::vector<int32> ParagraphsEndingBetween(float top, float bottom);
     std::string ReactionAt(float x,float y);
     int32 MessageAt(float x,float y);
     bool ExactTextHit(float x,float y,int32 offset);
@@ -123,7 +91,7 @@ private:
 
 private:
 			float				fWidth;
-			bool				fLayoutValid;
+			int32				fFirstDirtyParagraph;
 
 			TextDocumentRef		fDocument;
 			TextListenerRef		fTextListener;

@@ -103,9 +103,12 @@ int main(){
     Check(reads.MarkRead("stable-one","peer@fixture.test"),"read resolves stable alias");
     Check(!reads.MarkRead("sent-one","peer@fixture.test"),"duplicate read is idempotent");
     Check(reads.ReadLabel("sent-one")=="Read" && reads.ReadLabel("sent-two").empty(),"only exact message marked read");
-    reads.Delivery("sent-one",4);
+    Check(reads.Delivery("stable-one",4),"delivery resolves stable alias");
+    Check(!reads.Delivery("sent-one",4),"duplicate delivery skips persistent replacement");
     ChatHistory readRestart(root,"reader@fixture.test","peer@fixture.test");readRestart.Load();
     Check(readRestart.ReadLabel("stable-one")=="Read","read survives restart and late transport error");
+    Check(readRestart.Record("sent-one").GetInt32("delivery",-1)==4
+        && !readRestart.Delivery("stable-one",4),"duplicate delivery stays a no-op after restart");
     auto archived=sent;archived.ReplaceInt64("time",1100);readRestart.MergeArchive(archived);
     Check(readRestart.ReadLabel("sent-one")=="Read","archive reconciliation retains read status");
     ChatHistory readOther(root,"different@fixture.test","peer@fixture.test");readOther.Load();

@@ -361,10 +361,16 @@ void
 TextDocumentView::GetHeightForWidth(float width, float* min, float* max,
 	float* preferred)
 {
-	TextDocumentLayout layout(fTextDocumentLayout);
-	layout.SetWidth(_TextLayoutWidth(width));
-
-	float height = layout.Height() + 1 + fInsetTop + fInsetBottom;
+	const float layoutWidth = _TextLayoutWidth(width);
+	float height;
+	if (fTextDocumentLayout.Width() == layoutWidth) {
+		height = fTextDocumentLayout.Height();
+	} else {
+		TextDocumentLayout layout(fTextDocumentLayout);
+		layout.SetWidth(layoutWidth);
+		height = layout.Height();
+	}
+	height += 1 + fInsetTop + fInsetBottom;
 
 	if (min != NULL)
 		*min = height;
@@ -547,7 +553,6 @@ TextDocumentView::Copy(BClipboard* clipboard)
 void
 TextDocumentView::Relayout()
 {
-	fTextDocumentLayout.Invalidate();
 	_UpdateScrollBars();
 }
 
@@ -824,4 +829,16 @@ bool TextDocumentView::ParagraphReadVisible(int32 index)
     const BRect viewport = Bounds();
     return paragraph.bottom >= viewport.top && paragraph.bottom <= viewport.bottom
         && (paragraph.top >= viewport.top || paragraph.Height() > viewport.Height());
+}
+
+std::vector<int32>
+TextDocumentView::ReadVisibleParagraphs()
+{
+    if (IsHidden()) return {};
+    const BRect viewport = Bounds();
+    auto visible = fTextDocumentLayout.ParagraphsEndingBetween(
+        viewport.top - fInsetTop, viewport.bottom - fInsetTop);
+    visible.erase(std::remove_if(visible.begin(), visible.end(),
+        [this](int32 index) { return !ParagraphReadVisible(index); }), visible.end());
+    return visible;
 }

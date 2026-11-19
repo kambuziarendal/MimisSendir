@@ -5,6 +5,7 @@
 
 #include "TextDocumentLayout.h"
 
+#include <algorithm>
 #include <new>
 #include <stdio.h>
 
@@ -26,20 +27,13 @@ public:
 
 	virtual	void TextChanged(const TextChangedEvent& event)
 	{
-		(void)event;
-//		printf("TextChanged(%" B_PRIi32 ", %" B_PRIi32 ")\n",
-//			event.FirstChangedParagraph(),
-//			event.ChangedParagraphCount());
-		// TODO: The event does not contain useful data. Make the event
-		// system work so only the affected paragraphs are updated.
-		// I think we need "first affected", "last affected" (both relative
-		// to the original paragraph count), and than how many new paragraphs
-		// are between these. From the difference in old number of paragraphs
-		// inbetween and the new count, we know how many new paragraphs are
-		// missing, and the rest in the range needs to be updated.
-//		fLayout->InvalidateParagraphs(event.FirstChangedParagraph(),
-//			event.ChangedParagraphCount());
-		fLayout->Invalidate();
+		if (event.HasExactRange()) {
+			fLayout->InvalidateParagraphs(event.FirstChangedParagraph(),
+				event.ChangedParagraphCount());
+		} else {
+			// General text edits can insert or remove paragraphs.
+			fLayout->Invalidate();
+		}
 	}
 
 private:
@@ -51,7 +45,7 @@ private:
 TextDocumentLayout::TextDocumentLayout()
 	:
 	fWidth(0.0f),
-	fLayoutValid(false),
+	fFirstDirtyParagraph(0),
 
 	fDocument(),
 	fTextListener(new(std::nothrow) LayoutTextListener(this), true),
@@ -63,7 +57,7 @@ TextDocumentLayout::TextDocumentLayout()
 TextDocumentLayout::TextDocumentLayout(const TextDocumentRef& document)
 	:
 	fWidth(0.0f),
-	fLayoutValid(false),
+	fFirstDirtyParagraph(0),
 
 	fDocument(),
 	fTextListener(new(std::nothrow) LayoutTextListener(this), true),
@@ -75,15 +69,9 @@ TextDocumentLayout::TextDocumentLayout(const TextDocumentRef& document)
 
 TextDocumentLayout::TextDocumentLayout(const TextDocumentLayout& other)
 	:
-	fWidth(other.fWidth),
-	fLayoutValid(other.fLayoutValid),
-
-	fDocument(other.fDocument),
-	fTextListener(new(std::nothrow) LayoutTextListener(this), true),
-	fParagraphLayouts(other.fParagraphLayouts)
+	TextDocumentLayout(other.fDocument)
 {
-	if (fDocument.IsSet())
-		fDocument->AddListener(fTextListener);
+	SetWidth(other.fWidth);
 }
 
 
@@ -104,7 +92,7 @@ TextDocumentLayout::SetTextDocument(const TextDocumentRef& document)
 
 	fDocument = document;
 	_Init();
-	fLayoutValid = false;
+	fFirstDirtyParagraph = 0;
 
 	if (fDocument.IsSet())
 		fDocument->AddListener(fTextListener);
@@ -122,10 +110,10 @@ TextDocumentLayout::Invalidate()
 void
 TextDocumentLayout::InvalidateParagraphs(int32 start, int32 count)
 {
-	if (start < 0 || count == 0 || !fDocument.IsSet())
+	if (start < 0 || !fDocument.IsSet())
 		return;
 
-	fLayoutValid = false;
+	fFirstDirtyParagraph = std::min(fFirstDirtyParagraph, start);
 
 	while (count > 0) {
 		const int32 paragraphCount = fDocument->CountParagraphs();
@@ -168,7 +156,7 @@ TextDocumentLayout::SetWidth(float width)
 {
 	if (fWidth != width) {
 		fWidth = width;
-		fLayoutValid = false;
+		fFirstDirtyParagraph = 0;
 	}
 }
 
@@ -341,10 +329,11 @@ TextDocumentLayout::TextOffsetAt(float x, float y, bool& rightOfCenter)
 void
 TextDocumentLayout::_ValidateLayout()
 {
-	if (!fLayoutValid) {
-		_Layout();
-		fLayoutValid = true;
-	}
+	const int32 count = fParagraphLayouts.size();
+	if (fFirstDirtyParagraph >= count)
+		return;
+	_Layout();
+	fFirstDirtyParagraph = count;
 }
 
 
@@ -381,19 +370,27 @@ void
 TextDocumentLayout::_Layout()
 {
 	float y = 0.0f;
+	if (fFirstDirtyParagraph > 0) {
+		const auto& previous = fParagraphLayouts[fFirstDirtyParagraph - 1];
+		y = previous.y;
+		y += previous.layout->Height() + previous.layout->Style().SpacingBottom();
+	}
 
-	int layoutCount = fParagraphLayouts.size();
-	for (int i = 0; i < layoutCount; i++) {
-		ParagraphLayoutInfo info = fParagraphLayouts[i];
+	const int32 count = fParagraphLayouts.size();
+	for (int32 i = fFirstDirtyParagraph; i < count; ++i) {
+		auto& info = fParagraphLayouts[i];
 		const ParagraphStyle& style = info.layout->Style();
-
 		if (i > 0)
 			y += style.SpacingTop();
-
-		fParagraphLayouts[i] = ParagraphLayoutInfo(y, info.layout);
-
+		info.y = y;
 		info.layout->SetWidth(fWidth);
-		y += info.layout->Height() + style.SpacingBottom();
+		const float height = info.layout->Height();
+		if (i > 0) {
+			const auto& previous = fParagraphLayouts[i - 1];
+			info.orderedBottoms = previous.orderedBottoms
+				&& previous.y + previous.layout->Height() <= y + height;
+		}
+		y += height + style.SpacingBottom();
 	}
 }
 
@@ -479,4 +476,31 @@ BRect TextDocumentLayout::ParagraphBounds(int32 index)
     if(index<0 || size_t(index)>=fParagraphLayouts.size())return BRect();
     const auto& info=fParagraphLayouts[index];
     return BRect(0,info.y,fWidth,info.y+info.layout->Height());
+}
+
+std::vector<int32>
+TextDocumentLayout::ParagraphsEndingBetween(float top, float bottom)
+{
+	_ValidateLayout();
+	std::vector<int32> result;
+	if (fParagraphLayouts.empty())
+		return result;
+
+	// Negative paragraph spacing can overlap and reorder bottoms; in
+	// that case retain the full scan instead of relying on the ordering.
+	const bool ordered = fParagraphLayouts.back().orderedBottoms;
+	const auto end = fParagraphLayouts.end();
+	auto it = fParagraphLayouts.begin();
+	if (ordered) {
+		it = std::lower_bound(it, end, top,
+			[](const auto& info, float y) { return info.y + info.layout->Height() < y; });
+	}
+	for (; it != end; ++it) {
+		const float paragraphBottom = it->y + it->layout->Height();
+		if (paragraphBottom > bottom && ordered)
+			break;
+		if (paragraphBottom >= top && paragraphBottom <= bottom)
+			result.push_back(it - fParagraphLayouts.begin());
+	}
+	return result;
 }

@@ -67,9 +67,10 @@ TextChangingEvent::Cancel()
 
 
 TextChangedEvent::TextChangedEvent(int32 firstChangedParagraph,
-		int32 changedParagraphCount)
+		int32 changedParagraphCount, bool exactRange)
 	:
-	TextChangeEvent(firstChangedParagraph, changedParagraphCount)
+	TextChangeEvent(firstChangedParagraph, changedParagraphCount),
+	fExactRange(exactRange)
 {
 }
 

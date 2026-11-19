@@ -469,6 +469,7 @@ struct Iterator
 
 void TalkView::MessageReceived(BMessage *msg) {
     if(msg->what=='rVis'){
+        if (IsHidden()) { fReadTracker.Observe({}, system_time()); return; }
         const auto authority = Upload::Profile::Load().authority;
         if (authority != fMediaAuthority) {
             fMediaAuthority = authority;
@@ -512,6 +513,7 @@ void TalkView::MessageReceived(BMessage *msg) {
         if(changed) {
             auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
             const float position=bar->Value();const bool bottom=position>=high-1;
+            fMessageParagraphs.clear();
             fLastMessageDay.clear();fTimelineDocument.SetTo(new TextDocument(),true);fTimeline->SetTextDocument(fTimelineDocument);
             if(fReactions)fReactions->Rebind(fTimelineDocument);
             if(fAttachments)fAttachments->Rebind(fTimelineDocument);
@@ -1534,16 +1536,21 @@ bool TalkView::AddToTalk(std::string username, std::list<TextSpan>& runs,
         }
     }
 
-	fTimelineDocument->Append(paragraph);
+	if (!fTimelineDocument->Append(paragraph)) return false;
     if(type!=OTHER && !messageId.empty()) {
+        const int32 index = fTimelineDocument->CountParagraphs() - 1;
+        fMessageParagraphs.emplace(messageId, index);
         if(!fReactions)fReactions=std::make_unique<ReactionController>(BMessenger(this),*fTimeline,
             fTimelineDocument,IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat(),fHistory.get());
+        // Relayout once below, including any reaction or alias that arrived
+        // before its message. Do not repaint once in each controller.
+        fReactions->SetBatch(true);
+        fReactions->Add(messageId, index);
         fReactions->SetBatch(fReplayingHistory);
-        fReactions->Add(messageId,fTimelineDocument->CountParagraphs()-1);
     }
 	AddAttachment(attachment);
 	if(fReplayingHistory)return true;
-	// FIXME relayout and invalidate only the newly added paragraph
+	// The document already notified the layout of the appended paragraphs.
 	fTimeline->Relayout();
 
 	if (scrolledDown) {
@@ -1975,8 +1982,7 @@ void TalkView::DeliveryStatus(const std::string& id, Chat::Delivery state)
         // against persisted outgoing history too, never the last visible text.
         if (fHistory && state == Chat::Delivery::Delivered
             && fHistory->Record(id).GetBool("outgoing", false)) {
-            fHistory->Delivery(id, static_cast<int32>(state));
-            RefreshMessageFooter(id);
+            if (fHistory->Delivery(id, static_cast<int32>(state))) RefreshMessageFooter(id);
             return;
         }
         if (state == Chat::Delivery::Failed)
@@ -2049,6 +2055,7 @@ void TalkView::EndEdit() {
 void TalkView::RebuildHistory() {
     auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
     const float position=bar->Value();const bool bottom=position>=high-1;
+    fMessageParagraphs.clear();
     fLastMessageDay.clear();fTimelineDocument.SetTo(new TextDocument(),true);fTimeline->SetTextDocument(fTimelineDocument);
     if(fReactions)fReactions->Rebind(fTimelineDocument);
     if(fAttachments)fAttachments->Rebind(fTimelineDocument);
@@ -2078,11 +2085,10 @@ void TalkView::UpdateReading()
     std::vector<std::string> visible;
     if (Window()->IsActive() && !Window()->IsMinimized() && !fLoadingArchive
         && !fReplayingHistory && fHistory && connection->IsConnected()) {
-        for (int32 i = 0; i < fTimelineDocument->CountParagraphs(); ++i) {
+        for (int32 i : fTimeline->ReadVisibleParagraphs()) {
             const auto& style = fTimelineDocument->ParagraphAtIndex(i).Style();
-            const auto id = style.ReactionId();
-            if (style.MessageKind() != 1 || id.empty() || fReadTracker.SubmittedAlready(id)
-                || !fTimeline->ParagraphReadVisible(i)) continue;
+            const auto& id = style.ReactionId();
+            if (style.MessageKind() != 1 || id.empty() || fReadTracker.SubmittedAlready(id)) continue;
             auto record = fHistory->Record(id);
             if (!record.GetBool("outgoing",true) && record.GetBool("markable",false)) visible.push_back(id);
         }
@@ -2135,19 +2141,14 @@ void TalkView::RefreshMessageFooter(const std::string& id) {
     if (!fHistory) return;
     const auto record = fHistory->Record(id);
     const std::string original = record.GetString("id", "");
-    if (original.empty()) return;
+    const auto paragraph = fMessageParagraphs.find(original);
+    if (paragraph == fMessageParagraphs.end()) return;
     auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
     float low = 0, high = 0;
     bar->GetRange(&low, &high);
     const bool bottom = bar->Value() >= high - 1;
-    for (int32 i = 0; i < fTimelineDocument->CountParagraphs(); ++i) {
-        auto paragraph = fTimelineDocument->ParagraphAtIndex(i);
-        auto style = paragraph.Style();
-        auto target = fHistory->Record(style.ReactionId());
-        if (original != target.GetString("id", "")) continue;
-        fTimeline->UpdateMessageFooter(i,
-            MessageFooter(original, record.GetInt64("time", 0)),
-            MessageDeliveryMark(original));
-    }
+    fTimeline->UpdateMessageFooter(paragraph->second,
+        MessageFooter(original, record.GetInt64("time", 0)),
+        MessageDeliveryMark(original));
     if (bottom) { bar->GetRange(&low, &high); bar->SetValue(high); }
 }

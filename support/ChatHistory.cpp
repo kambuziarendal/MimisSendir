@@ -185,10 +185,19 @@ bool ChatHistory::ConfirmCorrection(const std::string& id) {
     return false;
 }
 
-void ChatHistory::Delivery(const std::string& id,int32 state) {
-    auto key=Key(id);if(key.empty() || IsDeleted(id))return;
-    BMessage m(fRecords.at(key));m.RemoveName("delivery");m.AddInt32("delivery",state);
-    if(Save(key,m))fRecords[key]=m;
+bool ChatHistory::Delivery(const std::string& id, int32 state) {
+    const auto key = Key(id);
+    if (key.empty()) return false;
+    auto& record = fRecords.at(key);
+    int32 previous;
+    if (record.GetBool("deleted-local", false)
+        || (record.FindInt32("delivery", &previous) == B_OK && previous == state)) return false;
+    BMessage updated(record);
+    updated.RemoveName("delivery");
+    updated.AddInt32("delivery", state);
+    if (!Save(key, updated)) return false;
+    record = updated;
+    return true;
 }
 
 std::vector<BMessage> ChatHistory::Records() const {

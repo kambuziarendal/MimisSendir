@@ -49,11 +49,15 @@ private:
 class TextChangedEvent : public TextChangeEvent {
 public:
 								TextChangedEvent(int32 firstChangedParagraph,
-									int32 changedParagraphCount);
+									int32 changedParagraphCount,
+									bool exactRange = false);
 	virtual						~TextChangedEvent();
+
+			bool				HasExactRange() const { return fExactRange; }
 
 private:
 								TextChangedEvent();
+	bool fExactRange = false;
 };
 
 

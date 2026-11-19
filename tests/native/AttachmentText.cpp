@@ -235,11 +235,40 @@ int main()
         Check(view->ParagraphReadVisible(0),"fully visible first message can be read");
         Check(!view->ParagraphReadVisible(40),"offscreen message is not read-visible");
         auto* bar=scroller->ScrollBar(B_VERTICAL);
+        auto checkVisible = [&] {
+            std::vector<int32> expected;
+            for (int32 i = 0; i < doc->CountParagraphs(); ++i)
+                if (view->ParagraphReadVisible(i)) expected.push_back(i);
+            Check(view->ReadVisibleParagraphs() == expected,
+                "bounded read scan matches strict per-paragraph visibility");
+        };
+        checkVisible();
+        const auto beforeWidthProbe = view->ReadVisibleParagraphs();
+        float minHeight, maxHeight, preferred;
+        view->GetHeightForWidth(140, &minHeight, &maxHeight, &preferred);
+        Check(view->ReadVisibleParagraphs() == beforeWidthProbe,
+            "measuring another width does not alter current paragraph geometry");
         bar->SetValue(15);
         Check(!view->ParagraphReadVisible(0),"partly clipped message is not read-visible");
+        checkVisible();
         Check(view->ConvertToParent(jump->Frame()) == jumpFrame, "scrolling document keeps overlay fixed");
         float low,high;bar->GetRange(&low,&high);bar->SetValue(high);
         Check(view->ParagraphReadVisible(40),"bottom jump reveals newest message for reading");
+        checkVisible();
+        Paragraph longMessage;
+        for (int line = 0; line < 100; ++line)
+            longMessage.Append(TextSpan("Tall incoming message\n", style));
+        Check(doc->Append(longMessage), "append tall message to an already laid out document");
+        view->Relayout();
+        float newHigh;
+        bar->GetRange(&low, &newHigh);
+        Check(newHigh > high, "incremental append grows the document's scroll range");
+        bar->SetValue(newHigh);
+        Check(view->ParagraphReadVisible(41), "tall message is readable once its bottom is reached");
+        checkVisible();
+        bar->SetValue(newHigh - view->Bounds().Height());
+        Check(!view->ParagraphReadVisible(41), "tall message is not readable before its bottom is reached");
+        checkVisible();
         jump->Hide();window->UpdateIfNeeded();
         Check(view->Frame() == timelineFrame, "hiding overlay does not reflow conversation");
         window->ResizeTo(320,280);window->Unlock();snooze(150000);window->Lock();
@@ -248,7 +277,9 @@ int main()
         Check(std::abs(view->Bounds().right-jump->Frame().right-12)<1
             && std::abs(view->Bounds().bottom-jump->Frame().bottom-12)<1,
             "overlay follows viewport bottom right on resize");
+        checkVisible();
         view->Hide();Check(!view->ParagraphReadVisible(40),"hidden timeline cannot mark read");
+        Check(view->ReadVisibleParagraphs().empty(), "hidden timeline has no visible candidates");
         window->Quit();
     }
     {

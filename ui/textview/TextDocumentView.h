@@ -77,6 +77,7 @@ public:
 public:
     bool ParagraphVisible(int32 index);
     bool ParagraphReadVisible(int32 index);
+    std::vector<int32> ReadVisibleParagraphs();
     void UpdateMessageFooter(int32 index, const std::string& text,
         ParagraphStyle::DeliveryMark mark);
 
