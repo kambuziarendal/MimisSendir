@@ -1110,9 +1110,10 @@ void JabberSpeak::BridgePresence(const gloox::JID& jid, gloox::Presence::Presenc
     BlabberMainWindow::Instance()->PostMessage(&notice);
 }
 
-bool JabberSpeak::QueueArchive(const std::string& peer,bool group,const BMessenger& target,int64 since) {
+bool JabberSpeak::QueueArchive(const std::string& peer, bool group, const BMessenger& target, int64 since, uint64 generation) {
     std::lock_guard<std::mutex> lock(fUploadLock);
-    return fArchiveManager && fArchiveManager->Queue(peer,group,target,since);
+    return generation == ConnectionGeneration() && fArchiveManager
+        && fArchiveManager->Queue(peer, group, target, since, generation);
 }
 bool JabberSpeak::HandleArchive(const gloox::Message& message) {
     return fArchiveManager && fArchiveManager->Handle(message);

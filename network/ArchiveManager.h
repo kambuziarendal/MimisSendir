@@ -13,7 +13,7 @@ namespace Chat {
 class ArchiveManager : public gloox::IqHandler {
 public:
     explicit ArchiveManager(gloox::Client& client);
-    bool Queue(const std::string& peer,bool group,const BMessenger& target,int64 since=0);
+    bool Queue(const std::string& peer,bool group,const BMessenger& target,int64 since,uint64 generation);
     void Tick();
     void Disconnected();
     bool Handle(const gloox::Message& message);

@@ -171,7 +171,7 @@ private:
 public:
     bool QueueDisplayed(const std::string& recipient, const std::string& id, bool group);
     void QueueAvatar(const std::string& account,const std::string& jid);
-    bool QueueArchive(const std::string& peer,bool group,const BMessenger& target,int64 since=0);
+    bool QueueArchive(const std::string& peer,bool group,const BMessenger& target,int64 since,uint64 generation);
     bool HandleArchive(const gloox::Message& message);
     std::string QueueReaction(const std::string& recipient, const std::string& id,
         const std::string& emoji, bool group, const BMessenger& target);

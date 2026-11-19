@@ -187,7 +187,16 @@ private:
     std::unique_ptr<ChatHistory> fHistory;
     bool fReplayingHistory = false;
     bool fLoadingArchive = false;
-    std::deque<BMessage> fDeferredReactions;
+    struct ArchiveReplay;
+    std::unique_ptr<ArchiveReplay> fArchiveReplay;
+    std::deque<BMessage> fDeferredArchiveUpdates;
+    bool fApplyingDeferredArchiveUpdate = false;
+    bool fArchiveSliceNeedsRetry = false;
+    uint64 fArchiveGeneration = 0;
+    void ScheduleArchiveSlice();
+    void ApplyArchiveSlice();
+    void ResetArchiveReplay();
+    void RestoreTimelineFromHistory(bool reload);
     void RestoreHistory(bool reload=true);
     void RebuildHistory();
     void EndEdit();

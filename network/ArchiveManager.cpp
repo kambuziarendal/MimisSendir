@@ -24,9 +24,16 @@ public:
 
 }
 ArchiveManager::ArchiveManager(gloox::Client& client):fClient(client){fClient.registerStanzaExtension(new Mam());}
-bool ArchiveManager::Queue(const std::string& peer,bool group,const BMessenger& target,int64 since){
+bool ArchiveManager::Queue(const std::string& peer,bool group,const BMessenger& target,int64 since,uint64 generation){
     std::lock_guard<std::mutex> lock(fLock);if(fStopped || fQueue.size()>=16 || peer.empty())return false;
-    auto r=std::make_shared<Request>();r->peer=peer;r->group=group;r->target=target;r->since=since;fQueue.push_back(r);return true;
+    auto request = std::make_shared<Request>();
+    request->peer = peer;
+    request->group = group;
+    request->target = target;
+    request->since = since;
+    request->result.AddUInt64("generation", generation);
+    fQueue.push_back(request);
+    return true;
 }
 void ArchiveManager::Send(const std::shared_ptr<Request>& r){
     r->id=fClient.getID();r->deadline=system_time()+15000000;r->pages++;

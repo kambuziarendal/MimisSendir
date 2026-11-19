@@ -4,7 +4,10 @@
 // Blabber [TalkView.cpp]
 //////////////////////////////////////////////////
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <sys/time.h>
 #include "support/ConversationStore.h"
@@ -84,6 +87,21 @@
 // only a few seconds, that's reasonable on IRC, but on XMPP the ping has to go through multiple
 // servers and is a lot more complicated, so let's be a bit slower.
 static const int kSelfPingDelay = 5 * 60000000;
+
+
+struct TalkView::ArchiveReplay {
+    enum Stage : size_t { Parse, Messages, Corrections, Reads, Restore, Reactions, Deferred };
+
+    explicit ArchiveReplay(const BMessage& message)
+        : result(message), complete(message.GetBool("complete", false)) {}
+
+    BMessage result;
+    const bool complete;
+    bool changed = false;
+    Stage stage = Parse;
+    size_t next = 0;
+    std::array<std::vector<BMessage>, Deferred> records;
+};
 
 
 TalkView::TalkView(const gloox::JID *user, std::string group_room,
@@ -468,10 +486,21 @@ struct Iterator
 
 
 void TalkView::MessageReceived(BMessage *msg) {
+    if (fLoadingArchive) {
+        const auto* connection = JabberSpeak::Instance();
+        if (fArchiveGeneration != connection->ConnectionGeneration() || !connection->IsConnected())
+            ResetArchiveReplay();
+    }
+    if (msg->what == 'hCon') {
+        if (fArchiveReplay && msg->GetUInt64("generation", 0) == fArchiveGeneration)
+            ApplyArchiveSlice();
+        return;
+    }
     if(msg->what=='rVis'){
+        if (fArchiveSliceNeedsRetry) ScheduleArchiveSlice();
         if (IsHidden()) { fReadTracker.Observe({}, system_time()); return; }
         const auto authority = Upload::Profile::Load().authority;
-        if (authority != fMediaAuthority) {
+        if (!fLoadingArchive && authority != fMediaAuthority) {
             fMediaAuthority = authority;
             fAttachments.reset();
             if (fHistory) RebuildHistory();
@@ -488,47 +517,18 @@ void TalkView::MessageReceived(BMessage *msg) {
     if(msg->what=='rInc' && !IsGroupChat() && std::string(msg->GetString("actor",""))!="self") {
         msg->RemoveName("name");msg->AddString("name",fFriendlyName.c_str());
     }
-    if((msg->what=='rInc' || msg->what=='mCor' || msg->what=='mRed') && fLoadingArchive){if(fDeferredReactions.size()<128)fDeferredReactions.push_back(*msg);return;}
+    if (fLoadingArchive && !fApplyingDeferredArchiveUpdate
+        && (msg->what == 'rInc' || msg->what == 'mCor' || msg->what == 'mRed')) {
+        fDeferredArchiveUpdates.push_back(*msg);
+        return;
+    }
     if(msg->what=='rSet' && fLoadingArchive){SetStatus("Wait for history to finish loading before reacting.");return;}
-    if(msg->what=='hDon') {
-        fLoadingArchive=false;std::vector<BMessage> records;BMessage m;bool changed=false;
-        const bool initial=!fArchiveSince;
-        if(msg->GetBool("complete",false))fArchiveSince=fArchiveStarted;
-        for(int i=0;msg->FindMessage("record",i,&m)==B_OK;++i)records.push_back(m);
-        std::stable_sort(records.begin(),records.end(),[](const auto& a,const auto& b){return a.GetInt64("time",0)<b.GetInt64("time",0);});
-        for(auto& item:records)if(item.what=='hRec') {
-            if(!IsGroupChat()){item.RemoveName("name");item.AddString("name",item.GetBool("outgoing",false)?OurRepresentation().c_str():fFriendlyName.c_str());}
-            else if(std::string(item.GetString("name",""))==_group_username){item.RemoveName("outgoing");item.AddBool("outgoing",true);}
-            changed=fHistory->MergeArchive(item)||changed;
+    if (msg->what == 'hDon') {
+        if (fLoadingArchive && !fArchiveReplay
+            && msg->GetUInt64("generation", 0) == fArchiveGeneration) {
+            fArchiveReplay = std::make_unique<ArchiveReplay>(*msg);
+            ScheduleArchiveSlice();
         }
-        for(auto& item:records)if(item.what=='mCor') {
-            const bool own=item.GetBool("outgoing",false) || (IsGroupChat() && std::string(item.GetString("name",""))==_group_username);
-            changed=fHistory->Correct(item.GetString("replace",""),item.GetString("id",""),item.GetString("body",""),item.GetString("sender",""),own,item.GetInt64("time",0))||changed;
-        }
-        for (const auto& item : records) if (item.what=='mRed') {
-            if (IsGroupChat() && std::string(item.GetString("name", ""))==_group_username) continue;
-            changed=fHistory->MarkRead(item.GetString("id", ""),item.GetString("actor", "")) || changed;
-        }
-        // Rebuild once, chronologically, after the bounded archive batch. No outgoing replay.
-        if(changed) {
-            auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
-            const float position=bar->Value();const bool bottom=position>=high-1;
-            fMessageParagraphs.clear();
-            fLastMessageDay.clear();fTimelineDocument.SetTo(new TextDocument(),true);fTimeline->SetTextDocument(fTimelineDocument);
-            if(fReactions)fReactions->Rebind(fTimelineDocument);
-            if(fAttachments)fAttachments->Rebind(fTimelineDocument);
-            RestoreHistory();
-            if(!bottom)bar->SetValue(position);
-        }
-        for(auto& item:records)if(item.what=='rInc' && fReactions) {
-            if(!IsGroupChat()){item.RemoveName("name");item.AddString("name",std::string(item.GetString("actor",""))=="self"?"You":fFriendlyName.c_str());}
-            else if(std::string(item.GetString("name",""))==_group_username){item.RemoveName("actor");item.AddString("actor","self");}
-            fReactions->Handle(item);
-        }
-        for(auto live:fDeferredReactions){if(live.what=='mCor' || live.what=='mRed')MessageReceived(&live);else if(fReactions)fReactions->Handle(live);}
-        fDeferredReactions.clear();
-        if(initial || changed || !msg->GetBool("complete",false) || !fHistory->Error().empty())
-            SetStatus(fHistory->Error().empty()?msg->GetString("status","History loaded."):fHistory->Error());
         return;
     }
     if(msg->what=='mRed'){ReceiveRead(*msg);return;}
@@ -2018,8 +2018,156 @@ void TalkView::SyncHistory() {
     // last successful query, never a newest-message timestamp that could skip holes.
     fArchiveStarted=real_time_clock_usecs();
     const int64 since=fArchiveSince>60000000?fArchiveSince-60000000:0;
-    fLoadingArchive=JabberSpeak::Instance()->QueueArchive(IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat(),BMessenger(this),since);
+    auto* connection = JabberSpeak::Instance();
+    fArchiveGeneration = connection->ConnectionGeneration();
+    fLoadingArchive = connection->QueueArchive(IsGroupChat() ? _group_room : _session->target().bare(),
+        IsGroupChat(), BMessenger(this), since, fArchiveGeneration);
     if(fLoadingArchive && !fArchiveSince)SetStatus("Checking for missing server history…");
+}
+
+void TalkView::ScheduleArchiveSlice()
+{
+    BMessage next('hCon');
+    next.AddUInt64("generation", fArchiveGeneration);
+    // Never block posting to our own looper. If its port is full, the existing
+    // 250 ms poll retries, including for a hidden conversation.
+    fArchiveSliceNeedsRetry = BMessenger(this).SendMessage(&next,
+        static_cast<BHandler*>(nullptr), 0) != B_OK;
+}
+
+void TalkView::ResetArchiveReplay()
+{
+    fLoadingArchive = false;
+    fArchiveSliceNeedsRetry = false;
+    fArchiveReplay.reset();
+    fDeferredArchiveUpdates.clear();
+}
+
+void TalkView::RestoreTimelineFromHistory(bool reload)
+{
+    auto* bar = fTimelineScroller->ScrollBar(B_VERTICAL);
+    float low, high;
+    bar->GetRange(&low, &high);
+    const float position = bar->Value();
+    const bool bottom = position >= high - 1;
+    fMessageParagraphs.clear();
+    fLastMessageDay.clear();
+    fTimelineDocument.SetTo(new TextDocument(), true);
+    fTimeline->SetTextDocument(fTimelineDocument);
+    if (fReactions) fReactions->Rebind(fTimelineDocument);
+    if (fAttachments) fAttachments->Rebind(fTimelineDocument);
+    RestoreHistory(reload);
+    if (!bottom) bar->SetValue(position);
+}
+
+void TalkView::ApplyArchiveSlice()
+{
+    using Replay = ArchiveReplay;
+    auto& replay = *fArchiveReplay;
+    const bigtime_t deadline = system_time() + 8000;
+    // Durability is unchanged: each write is still synchronous and atomic.
+    // Bound work between returns to the looper even when writes are cheap.
+    for (int work = 0; work < 16 && (work == 0 || system_time() < deadline); ++work) {
+        if (replay.stage == Replay::Parse) {
+            BMessage item;
+            if (replay.result.FindMessage("record", replay.next++, &item) == B_OK) {
+                switch (item.what) {
+                    case 'hRec': replay.records[Replay::Messages].push_back(item); break;
+                    case 'mCor': replay.records[Replay::Corrections].push_back(item); break;
+                    case 'mRed': replay.records[Replay::Reads].push_back(item); break;
+                    case 'rInc': replay.records[Replay::Reactions].push_back(item); break;
+                }
+                continue;
+            }
+            // All originals must precede corrections and read markers, even
+            // when the server's result order puts a dependent record first.
+            for (auto& records : replay.records)
+                std::stable_sort(records.begin(), records.end(), [](const auto& a, const auto& b) {
+                    return a.GetInt64("time", 0) < b.GetInt64("time", 0);
+                });
+            replay.stage = Replay::Messages;
+            replay.next = 0;
+            break;
+        }
+
+        if (replay.stage == Replay::Restore) {
+            if (replay.changed) RestoreTimelineFromHistory(true);
+            replay.stage = Replay::Reactions;
+            break;
+        }
+
+        if (replay.stage == Replay::Deferred) {
+            if (fDeferredArchiveUpdates.empty()) {
+                const bool initial = !fArchiveSince;
+                if (replay.complete) fArchiveSince = fArchiveStarted;
+                if (initial || replay.changed || !replay.complete || !fHistory->Error().empty())
+                    SetStatus(fHistory->Error().empty()
+                        ? replay.result.GetString("status", "History loaded.") : fHistory->Error());
+                ResetArchiveReplay();
+                return;
+            }
+            BMessage item = std::move(fDeferredArchiveUpdates.front());
+            fDeferredArchiveUpdates.pop_front();
+            fApplyingDeferredArchiveUpdate = true;
+            // React/mark/edit callbacks use the normal correlation and
+            // persistence paths, but may not enqueue themselves again.
+            MessageReceived(&item);
+            fApplyingDeferredArchiveUpdate = false;
+            if (!fArchiveReplay) return;
+            continue;
+        }
+
+        auto& records = replay.records[replay.stage];
+        if (replay.next == records.size()) {
+            replay.stage = static_cast<Replay::Stage>(replay.stage + 1);
+            replay.next = 0;
+            continue;
+        }
+
+        auto& item = records[replay.next++];
+        const bool ownRoomMessage = IsGroupChat()
+            && _group_username == item.GetString("name", "");
+        switch (replay.stage) {
+            case Replay::Messages:
+                if (!IsGroupChat()) {
+                    item.RemoveName("name");
+                    item.AddString("name", item.GetBool("outgoing", false)
+                        ? OurRepresentation().c_str() : fFriendlyName.c_str());
+                } else if (ownRoomMessage) {
+                    item.RemoveName("outgoing");
+                    item.AddBool("outgoing", true);
+                }
+                replay.changed = fHistory->MergeArchive(item) || replay.changed;
+                break;
+            case Replay::Corrections:
+                replay.changed = fHistory->Correct(item.GetString("replace", ""), item.GetString("id", ""),
+                    item.GetString("body", ""), item.GetString("sender", ""),
+                    item.GetBool("outgoing", false) || ownRoomMessage, item.GetInt64("time", 0)) || replay.changed;
+                break;
+            case Replay::Reads:
+                if (!ownRoomMessage)
+                    replay.changed = fHistory->MarkRead(item.GetString("id", ""),
+                        item.GetString("actor", "")) || replay.changed;
+                break;
+            case Replay::Reactions:
+                if (!fReactions) break;
+                if (!IsGroupChat()) {
+                    item.RemoveName("name");
+                    item.AddString("name", std::strcmp(item.GetString("actor", ""), "self") == 0
+                        ? "You" : fFriendlyName.c_str());
+                } else if (ownRoomMessage) {
+                    item.RemoveName("actor");
+                    item.AddString("actor", "self");
+                }
+                fReactions->Handle(item);
+                break;
+            case Replay::Parse:
+            case Replay::Restore:
+            case Replay::Deferred:
+                break;
+        }
+    }
+    ScheduleArchiveSlice();
 }
 
 void TalkView::RestoreHistory(bool reload) {
@@ -2053,13 +2201,7 @@ void TalkView::EndEdit() {
     fMessageInput->MakeFocus(true);
 }
 void TalkView::RebuildHistory() {
-    auto* bar=fTimelineScroller->ScrollBar(B_VERTICAL);float low,high;bar->GetRange(&low,&high);
-    const float position=bar->Value();const bool bottom=position>=high-1;
-    fMessageParagraphs.clear();
-    fLastMessageDay.clear();fTimelineDocument.SetTo(new TextDocument(),true);fTimeline->SetTextDocument(fTimelineDocument);
-    if(fReactions)fReactions->Rebind(fTimelineDocument);
-    if(fAttachments)fAttachments->Rebind(fTimelineDocument);
-    RestoreHistory(false);if(!bottom)bar->SetValue(position);
+    RestoreTimelineFromHistory(false);
     const auto records=fHistory->Records();
     if(!records.empty()) {
         const auto& last=records.back();BMessage preview('cAct');preview.AddBool("edit",true);

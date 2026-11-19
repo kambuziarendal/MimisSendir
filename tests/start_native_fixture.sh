@@ -16,9 +16,12 @@ openssl req -x509 -newkey rsa:2048 -nodes -keyout "$fixture/key.pem" \
 python3 - "$fixture" <<'PY'
 from pathlib import Path
 import json
+import os
 import sys
 root = Path(sys.argv[1])
 quote = lambda path: json.dumps(str(path))
+# Enable actual MAM replay only for opted-in archive/typing regressions.
+archive_module = ' "mam";' if os.getenv("RENGA_FIXTURE_ARCHIVE") == "1" else ""
 config = f'''-- Synthetic, local-only test fixture. No production includes.
 daemonize = false
 pidfile = {quote(root / 'prosody.pid')}
@@ -31,7 +34,7 @@ https_ports = {{ 15443 }}
 https_interfaces = {{ "127.0.0.1" }}
 http_interfaces = {{ "127.0.0.1" }}
 unix_admin_socket_enabled = false
-modules_enabled = {{ "tls"; "saslauth"; "roster"; "disco"; "ping"; "carbons"; "pep"; "bookmarks"; }}
+modules_enabled = {{ "tls"; "saslauth"; "roster"; "disco"; "ping"; "carbons"; "pep"; "bookmarks";{archive_module} }}
 modules_disabled = {{ "s2s"; "admin_shell"; "posix"; }}
 authentication = "internal_hashed"
 ssl = {{ key = {quote(root / 'key.pem')}; certificate = {quote(root / 'ca.pem')}; }}
