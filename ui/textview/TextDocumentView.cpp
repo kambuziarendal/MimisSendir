@@ -125,14 +125,19 @@ TextDocumentView::Draw(BRect updateRect)
     }
     fBufferView->PushState();
     fBufferView->SetOrigin(-bounds.left, -bounds.top);
-    BRegion clip(updateRect);
+    // Rasterize just beyond the damage edge. Clipping an antialiased
+    // bubble exactly at that edge can change its last visible pixel.
+    BRect paintRect(updateRect);
+    paintRect.InsetBy(-5, -5);
+    paintRect = paintRect & bounds;
+    BRegion clip(paintRect);
     fBufferView->ConstrainClippingRegion(&clip);
     BFont font;
     GetFont(&font);
     fBufferView->SetFont(&font);
     fBufferView->SetLowColor(LowColor());
     fBufferView->SetHighColor(HighColor());
-    _DrawContent(fBufferView, updateRect);
+    _DrawContent(fBufferView, paintRect);
     fBufferView->PopState();
     fBufferView->Sync();
     fDrawBuffer->Unlock();
