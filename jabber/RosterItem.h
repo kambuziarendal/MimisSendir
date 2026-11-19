@@ -34,6 +34,7 @@ public:
 	bool             StalePointer() const;
 
 	const UserID    *GetUserID() const;
+	void             UpdatePresence(const UserID& user);
 	void             SetStalePointer(bool is_stale);
 
 	void			SetAvatar(BBitmap*);

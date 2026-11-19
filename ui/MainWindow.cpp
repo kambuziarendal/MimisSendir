@@ -540,14 +540,14 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
                 fRosterTimer = new BMessageRunner(BMessenger(this), &refresh, 75000, 1);
                 if (fRosterTimer->InitCheck() != B_OK) {
                     delete fRosterTimer; fRosterTimer = nullptr;
-                    _roster->UpdateRoster();
+                    _roster->RefreshRoster();
                 }
             }
             break;
         }
         case 'rUpd':
             delete fRosterTimer; fRosterTimer = nullptr;
-            _roster->UpdateRoster();
+            _roster->RefreshRoster();
             break;
 
 		case kHighlightRosterItem: {

@@ -54,6 +54,7 @@ public:
 
 	void                UpdatePopUpMenu();
 	void                UpdateRoster();
+	void                RefreshRoster();
 
     void SetMode(int mode);
     void SetAccount(const std::string& account);
@@ -66,6 +67,7 @@ private:
     Conversations::Store fRecent;
     std::string fRecentPath;
     std::string fAccount;
+    std::map<std::string, std::string> fContactNames;
     std::map<std::string, std::string> fRooms;
     int fMode = 0;
     bool fBookmarkBatch = false;

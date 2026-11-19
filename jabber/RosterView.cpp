@@ -529,6 +529,38 @@ void RosterView::MarkRead(const std::string& jid) {
     if (!item || item->unread == 0) return;
     fRecent.Read(jid); if (!fRecentPath.empty()) fRecent.Save(fRecentPath); UpdateRoster();
 }
+
+void RosterView::RefreshRoster() {
+    std::map<std::string, RosterItem*> visibleContacts;
+    if (fMode == 1) {
+        for (int32 i = 0; i < CountItems(); ++i) {
+            auto* item = dynamic_cast<RosterItem*>(ItemAt(i));
+            if (item && !item->StalePointer())
+                visibleContacts.emplace(item->GetUserID()->JID().bare(), item);
+        }
+    }
+    auto* roster = JRoster::Instance();
+    roster->Lock();
+    size_t contactCount = 0;
+    bool needsRebuild = false;
+    for (auto i = roster->BeginIterator(); i != roster->EndIterator(); ++i) {
+        const auto* user = *i;
+        if (!user->IsUser()) continue;
+        ++contactCount;
+        const auto name = fContactNames.find(user->JID().bare());
+        if (name == fContactNames.end() || name->second != user->FriendlyName()) {
+            needsRebuild = true;
+            break;
+        }
+        // Presence is not shown on the rows. Refresh the contact data used by
+        // its actions without repainting or replacing the list item.
+        const auto visible = visibleContacts.find(name->first);
+        if (visible != visibleContacts.end()) visible->second->UpdatePresence(*user);
+    }
+    roster->Unlock();
+    if (needsRebuild || contactCount != fContactNames.size()) UpdateRoster();
+}
+
 void RosterView::UpdateRoster() {
     bool group = false;
     auto selected = SelectedJid(group);
@@ -539,10 +571,14 @@ void RosterView::UpdateRoster() {
     JRoster* roster = JRoster::Instance();
     roster->Lock();
     std::vector<const UserID*> contacts;
+    fContactNames.clear();
     for (auto i = roster->BeginIterator(); i != roster->EndIterator(); ++i) {
         if ((*i)->IsUser()) {
             contacts.push_back(*i);
-            fRecent.Rename((*i)->JID().bare(), (*i)->FriendlyName());
+            const auto jid = (*i)->JID().bare();
+            const auto name = (*i)->FriendlyName();
+            fContactNames.emplace(jid, name);
+            fRecent.Rename(jid, name);
         }
     }
     auto recent = fRecent.Recent();
@@ -595,14 +631,7 @@ void RosterView::UpdateRoster() {
         item->SetEnabled(false);
         AddItem(item);
     }
-    for (int32 i = 0; i < CountItems(); ++i) {
-        std::string jid;
-        if (auto* item = dynamic_cast<ConversationItem*>(ItemAt(i))) jid = item->summary.jid;
-        if (auto* item = dynamic_cast<RosterItem*>(ItemAt(i))) jid = item->GetUserID()->JID().bare();
-        if (auto* item = dynamic_cast<BookmarkItem*>(ItemAt(i))) jid = item->GetUserID().bare();
-        if (jid == selected) Select(i);
-    }
-    SetSelectionMessage(new BMessage(kRosterSelectionChanged));
+    ShowSelection(selected, group);
     Invalidate();
 }
 
@@ -623,7 +652,7 @@ std::vector<Conversations::Summary> RosterView::ForwardTargets() const {
 void RosterView::ShowSelection(const std::string& jid, bool group) {
     SetSelectionMessage(nullptr);
     int32 match=-1;
-    for(int32 i=0;i<CountItems();++i) {
+    for(int32 i=0; !jid.empty() && i<CountItems(); ++i) {
         if(auto* item=dynamic_cast<ConversationItem*>(ItemAt(i))) {
             if(item->summary.jid==jid && item->summary.group==group)match=i;
         } else if(auto* item=dynamic_cast<RosterItem*>(ItemAt(i))) {

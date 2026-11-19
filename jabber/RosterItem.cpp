@@ -22,12 +22,17 @@ RosterItem::RosterItem(const UserID *userid)
 	, fAvatar(NULL)
 {
 	fSnapshot.reset(new UserID(userid->JID()));
-	fSnapshot->SetSubscriptionStatus(userid->SubscriptionStatus());
-	fSnapshot->SetOnlineStatus(userid->OnlineStatus());
-	fSnapshot->SetExactOnlineStatus(userid->ExactOnlineStatus());
-	fSnapshot->SetMoreExactOnlineStatus(userid->MoreExactOnlineStatus());
+	UpdatePresence(*userid);
 	_userid           = fSnapshot.get();
 	_is_stale_pointer = false;
+}
+
+void RosterItem::UpdatePresence(const UserID& user)
+{
+	fSnapshot->_subscription_status = user._subscription_status;
+	fSnapshot->_status = user._status;
+	fSnapshot->_exact_status = user._exact_status;
+	fSnapshot->_more_exact_status = user._more_exact_status;
 }
 
 
