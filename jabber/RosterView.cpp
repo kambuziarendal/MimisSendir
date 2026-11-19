@@ -511,7 +511,7 @@ void RosterView::SetAccount(const std::string& account) {
     else fRecent.Load(path.Path());
     UpdateRoster();
 }
-void RosterView::RecordActivity(BMessage* message) {
+bool RosterView::RecordActivity(BMessage* message) {
     Conversations::Summary item;
     item.jid = message->GetString("jid", ""); item.name = message->GetString("name", "");
     item.preview = message->GetString("preview", ""); item.group = message->GetBool("group", false);
@@ -519,10 +519,14 @@ void RosterView::RecordActivity(BMessage* message) {
     const bool changed=message->GetBool("edit",false)
         ? fRecent.CorrectPreview(item.jid,item.lastMessageId,item.preview)
         : fRecent.Record(item,message->GetBool("incoming",false),message->GetBool("visible",false),message->GetBool("archive",false));
-    if(changed) {
-        if (!fRecentPath.empty() && !fRecent.Save(fRecentPath)) fprintf(stderr, "Could not save conversation summaries\n");
-        UpdateRoster();
-    }
+    if (!changed) return false;
+    if (!fRecentPath.empty() && !fRecent.Save(fRecentPath))
+        fprintf(stderr, "Could not save conversation summaries\n");
+
+    // Contacts and Groups only display summaries in their Favorites section.
+    if (fMode == 0) return true;
+    const auto* summary = fRecent.Find(item.jid.substr(0, item.jid.find('/')));
+    return summary && summary->favorite;
 }
 void RosterView::MarkRead(const std::string& jid) {
     const auto* item = fRecent.Find(jid);

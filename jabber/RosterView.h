@@ -58,7 +58,7 @@ public:
 
     void SetMode(int mode);
     void SetAccount(const std::string& account);
-    void RecordActivity(BMessage* message);
+    bool RecordActivity(BMessage* message);
     void MarkRead(const std::string& jid);
     void ShowSelection(const std::string& jid, bool group);
     std::string SelectedJid(bool& group) const;

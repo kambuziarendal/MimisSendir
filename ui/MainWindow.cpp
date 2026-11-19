@@ -533,21 +533,11 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
 			break;
 		}
 
-        case BLAB_UPDATE_ROSTER: {
-            // Presence bursts should not rebuild the whole list once per contact.
-            if (!fRosterTimer) {
-                BMessage refresh('rUpd');
-                fRosterTimer = new BMessageRunner(BMessenger(this), &refresh, 75000, 1);
-                if (fRosterTimer->InitCheck() != B_OK) {
-                    delete fRosterTimer; fRosterTimer = nullptr;
-                    _roster->RefreshRoster();
-                }
-            }
+        case BLAB_UPDATE_ROSTER:
+            ScheduleRosterRefresh();
             break;
-        }
         case 'rUpd':
-            delete fRosterTimer; fRosterTimer = nullptr;
-            _roster->RefreshRoster();
+            RefreshRoster();
             break;
 
 		case kHighlightRosterItem: {
@@ -615,7 +605,10 @@ void BlabberMainWindow::MessageReceived(BMessage *msg) {
         }
 		case 'cAct': {
 			if (msg->GetUInt64("generation", 0) != JabberSpeak::Instance()->ConnectionGeneration()) break;
-			_roster->RecordActivity(msg);
+			if (_roster->RecordActivity(msg)) {
+				fRecentRowsDirty = true;
+				ScheduleRosterRefresh();
+			}
 			break;
 		}
         case 'fSel': {
@@ -1591,6 +1584,27 @@ void BlabberMainWindow::RefreshConversationStatus()
     fConversationStatus->SetTarget(view);
     fConversationLag->SetText(view->LagStatus()->Text());
     fConversationLag->SetHighColor(view->LagStatus()->HighColor());
+}
+
+void BlabberMainWindow::ScheduleRosterRefresh()
+{
+    if (fRosterTimer) return;
+    BMessage refresh('rUpd');
+    fRosterTimer = new BMessageRunner(BMessenger(this), &refresh, 75000, 1);
+    if (fRosterTimer->InitCheck() != B_OK) RefreshRoster();
+}
+
+void BlabberMainWindow::RefreshRoster()
+{
+    delete fRosterTimer;
+    fRosterTimer = nullptr;
+    // A presence refresh in the same batch must not swallow changed summaries.
+    if (fRecentRowsDirty) {
+        fRecentRowsDirty = false;
+        _roster->UpdateRoster();
+    } else {
+        _roster->RefreshRoster();
+    }
 }
 
 void BlabberMainWindow::LoadCredentials(bool initial)

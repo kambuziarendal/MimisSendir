@@ -62,6 +62,8 @@ private:
 
 	void						LoginSetNoAccount();
     void LoadCredentials(bool initial = false);
+    void ScheduleRosterRefresh();
+    void RefreshRoster();
 
 private:
 	// singleton
@@ -124,6 +126,7 @@ private:
     StatusView* fConversationLag = nullptr;
 	BMessageRunner* fLogoutTimer = nullptr;
     BMessageRunner* fRosterTimer = nullptr;
+    bool fRecentRowsDirty = false;
 	bool fExplicitLogout = false;
     uint64 fCredentialRequest = 0;
     std::string fCredentialDraft;
