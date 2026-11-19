@@ -104,6 +104,7 @@ struct TalkView::ArchiveReplay {
     BMessage result;
     const bool complete;
     bool changed = false;
+    bool finishLocally = false;
     Stage stage = Parse;
     size_t next = 0;
     std::array<std::vector<BMessage>, Deferred> records;
@@ -369,7 +370,8 @@ void TalkView::AttachedToWindow()
         fHistory=std::make_unique<ChatHistory>(root.Path(),JabberSpeak::Instance()->GlooxClient()->jid().bare(),
             IsGroupChat()?_group_room:_session->target().bare(),IsGroupChat());
         RestoreHistory();
-        fInitialHistoryWasEmpty = fHistory->Empty() && fHistory->Error().empty();
+        fInitialHistoryWasEmpty = fTimelineDocument->CountParagraphs() == 0
+            && fHistory->Error().empty() && fHistory->Empty();
     }
 	if (IsGroupChat()) {
 		BlabberMainWindow::Instance()->StartWatching(this, kRoomInfo);
@@ -497,8 +499,19 @@ struct Iterator
 void TalkView::MessageReceived(BMessage *msg) {
     if (fLoadingArchive) {
         const auto* connection = JabberSpeak::Instance();
-        if (fArchiveGeneration != connection->ConnectionGeneration() || !connection->IsConnected())
+        if (fArchiveGeneration != connection->ConnectionGeneration()) {
+            // The old account no longer owns this looper work.
             ResetArchiveReplay();
+        } else if (!connection->IsConnected()) {
+            if (RestoringArchiveTimeline()) {
+                // The snapshot and queued live messages were already committed
+                // for this account. Finish showing them if this view survives
+                // disconnection, without replaying more server archive data.
+                fArchiveReplay->finishLocally = true;
+            } else if (!fArchiveReplay || !fArchiveReplay->finishLocally) {
+                ResetArchiveReplay();
+            }
+        }
     }
     if (msg->what == 'hCon') {
         if (fArchiveReplay && msg->GetUInt64("generation", 0) == fArchiveGeneration)
@@ -2125,7 +2138,7 @@ void TalkView::PaintArchiveSlice()
             replay.stage = ArchiveReplay::PendingLines;
         }
         if (replay.pendingLines.empty()) {
-            replay.stage = ArchiveReplay::Reactions;
+            replay.stage = replay.finishLocally ? ArchiveReplay::Deferred : ArchiveReplay::Reactions;
             break;
         }
         auto line = std::move(replay.pendingLines.front());
@@ -2201,10 +2214,14 @@ void TalkView::ApplyArchiveSlice()
         if (replay.stage == Replay::Deferred) {
             if (fDeferredArchiveUpdates.empty()) {
                 const bool initial = !fArchiveSince;
-                if (replay.complete) fArchiveSince = fArchiveStarted;
-                if (initial || replay.changed || !replay.complete || !fHistory->Error().empty())
-                    SetStatus(fHistory->Error().empty()
-                        ? replay.result.GetString("status", "History loaded.") : fHistory->Error());
+                if (replay.complete && !replay.finishLocally) fArchiveSince = fArchiveStarted;
+                if (!fHistory->Error().empty()) {
+                    SetStatus(fHistory->Error());
+                } else if (replay.finishLocally) {
+                    SetStatus("Disconnected. Local history is preserved.");
+                } else if (initial || replay.changed || !replay.complete) {
+                    SetStatus(replay.result.GetString("status", "History loaded."));
+                }
                 ResetArchiveReplay();
                 return;
             }
