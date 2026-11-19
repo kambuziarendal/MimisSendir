@@ -21,12 +21,18 @@ status_t SendQuery(const BMessenger& target, BMessage& query, BMessage& reply)
     return target.SendMessage(&query, &reply, kSendTimeout, kSendTimeout);
 }
 
-status_t ReadDraft(const BMessenger& window, int32 limit, std::string& draft)
+status_t GetProperty(const BMessenger& target, const char* property, BMessage& reply)
+{
+    BMessage query(B_GET_PROPERTY);
+    query.AddSpecifier(property);
+    return SendQuery(target, query, reply);
+}
+
+status_t ReadDraft(const BMessenger& composer, int32 limit, std::string& draft)
 {
     BMessage query(B_GET_PROPERTY), reply;
     query.AddSpecifier("Text", int32(0), limit);
-    query.AddSpecifier("View", kComposer);
-    const status_t status = SendQuery(window, query, reply);
+    const status_t status = SendQuery(composer, query, reply);
     if (status != B_OK)
         return status;
     const char* text = nullptr;
@@ -36,27 +42,36 @@ status_t ReadDraft(const BMessenger& window, int32 limit, std::string& draft)
     return result;
 }
 
-BMessenger FindComposerWindow(const BMessenger& app)
+BMessenger FindComposer(const BMessenger& app)
 {
     BMessage query(B_GET_PROPERTY), reply;
-    query.AddSpecifier("Windows");
-    if (SendQuery(app, query, reply) != B_OK)
-        return {};
+    query.AddSpecifier("Messenger");
+    query.AddSpecifier("Window", int32(0));
     BMessenger window;
-    for (int32 i = 0; reply.FindMessenger("result", i, &window) == B_OK; ++i) {
-        BMessage textLength(B_COUNT_PROPERTIES), answer;
-        textLength.AddSpecifier("Text");
-        textLength.AddSpecifier("View", kComposer);
-        int32 count = 0;
-        if (SendQuery(window, textLength, answer) == B_OK
-            && answer.FindInt32("result", &count) == B_OK) {
-            return window;
-        }
+    if (SendQuery(app, query, reply) != B_OK
+        || reply.FindMessenger("result", &window) != B_OK)
+        return {};
+
+    BMessage handlers;
+    if (GetProperty(window, "Handlers", handlers) != B_OK)
+        return {};
+    BMessenger handler;
+    for (int32 i = 0; handlers.FindMessenger("result", i, &handler) == B_OK; ++i) {
+        BMessage name;
+        if (GetProperty(handler, "InternalName", name) != B_OK
+            || std::string(name.GetString("result", "")) != kComposer)
+            continue;
+
+        BMessage visibility;
+        bool hidden = true;
+        if (GetProperty(handler, "Hidden", visibility) == B_OK
+            && visibility.FindBool("result", &hidden) == B_OK && !hidden)
+            return handler;
     }
     return {};
 }
 
-status_t SendKey(const BMessenger& window, char key)
+status_t SendKey(const BMessenger& composer, char key)
 {
     const char bytes[]{key, '\0'};
     BMessage event(B_KEY_DOWN);
@@ -65,8 +80,7 @@ status_t SendKey(const BMessenger& window, char key)
     event.AddInt32("raw_char", key);
     event.AddInt32("modifiers", 0);
     event.AddString("bytes", bytes);
-    event.AddSpecifier("View", kComposer);
-    return window.SendMessage(&event, static_cast<BHandler*>(nullptr), kSendTimeout);
+    return composer.SendMessage(&event, static_cast<BHandler*>(nullptr), kSendTimeout);
 }
 
 void Report(const char* label, std::vector<bigtime_t>& times)
@@ -83,18 +97,27 @@ int MeasureTyping(const BMessenger& app, int count, int intervalMs)
 {
     if (count < 1 || count > 2000 || intervalMs < 1 || intervalMs > 1000)
         return 2;
-    const BMessenger window = FindComposerWindow(app);
-    if (!window.IsValid()) {
-        fprintf(stderr, "No open chat composer found. Open a synthetic conversation.\n");
+    BMessenger composer = FindComposer(app);
+    if (!composer.IsValid()) {
+        // A seeded conversation can still be processing the tail of its queue.
+        snooze(250000);
+        composer = FindComposer(app);
+    }
+    if (!composer.IsValid()) {
+        fprintf(stderr, "No responsive, visible composer found in the main window.\n");
         return 2;
     }
 
-    std::string draft;
-    if (ReadDraft(window, count + 1, draft) != B_OK || !draft.empty()) {
+    BMessage countText(B_COUNT_PROPERTIES), countReply;
+    countText.AddSpecifier("Text");
+    int32 textLength = -1;
+    if (SendQuery(composer, countText, countReply) != B_OK
+        || countReply.FindInt32("result", &textLength) != B_OK || textLength != 0) {
         fprintf(stderr, "The synthetic composer must be readable and empty.\n");
         return 2;
     }
 
+    std::string draft;
     const std::string pattern = "the quick brown fox jumps over the lazy dog ";
     std::string expected;
     for (int i = 0; i < count; ++i)
@@ -115,7 +138,7 @@ int MeasureTyping(const BMessenger& app, int count, int intervalMs)
         for (int i = 0; i < count; ++i) {
             snooze_until(start + i * interval, B_SYSTEM_TIMEBASE);
             submitted[i] = system_time();
-            if (SendKey(window, expected[i]) != B_OK)
+            if (SendKey(composer, expected[i]) != B_OK)
                 ++failedKeys;
         }
     });
@@ -127,7 +150,7 @@ int MeasureTyping(const BMessenger& app, int count, int intervalMs)
     bool mismatch = false;
     while (system_time() < deadline && visible < expected.size() && !mismatch) {
         const bigtime_t queried = system_time();
-        const status_t status = ReadDraft(window, count + 1, draft);
+        const status_t status = ReadDraft(composer, count + 1, draft);
         const bigtime_t now = system_time();
         if (status == B_OK) {
             if (queried >= start && queried <= finish)
